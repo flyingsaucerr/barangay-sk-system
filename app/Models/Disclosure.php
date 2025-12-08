@@ -1,0 +1,24 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Disclosure extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'title',
+        'description',
+        'date',
+        'category',
+        'full_details',
+        'is_published'
+    ];
+
+    protected $casts = [
+        'is_published' => 'boolean'
+    ];
+}
