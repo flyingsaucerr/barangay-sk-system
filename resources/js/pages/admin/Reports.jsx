@@ -7,6 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, Search, Calendar, Plus, Edit, Trash2, X, User, Eye } from 'lucide-react';
 
+// Add at the top of your component, right after the imports
+
+
 const API = {
   ADMIN_LIST: '/api/admin/monthly-reports',
   ADMIN_SHOW: (id) => `/api/admin/monthly-reports/${id}`,
@@ -77,7 +80,7 @@ const AdminMonthlyReports = () => {
 
   // Helper: authorization header
   const getAuthHeaders = (extra = {}) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken'); // ← CHANGE 'token' to 'authToken'
     const headers = {
       'Content-Type': 'application/json',
       ...extra
@@ -88,6 +91,10 @@ const AdminMonthlyReports = () => {
 
   // Fetch reports (ADMIN)
   const fetchReports = async () => {
+
+    console.log('Fetching from:', API.ADMIN_LIST);
+    console.log('Token exists:', !!localStorage.getItem('authToken'));
+
     setLoading(true);
     try {
       const params = new URLSearchParams();

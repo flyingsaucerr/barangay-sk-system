@@ -32,14 +32,14 @@ const AdminLogin = () => {
     setErrors({});
 
     try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // ← Add this line
+      body: JSON.stringify(formData),
+    });
 
       const data = await response.json();
 

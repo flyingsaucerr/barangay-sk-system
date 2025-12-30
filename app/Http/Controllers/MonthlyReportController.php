@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/MonthlyReportController.php
 
 namespace App\Http\Controllers;
 
@@ -10,7 +9,8 @@ use Illuminate\Support\Facades\Validator;
 
 class MonthlyReportController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    // PUBLIC METHODS
+    public function publicIndex(Request $request): JsonResponse
     {
         $query = MonthlyReport::where('status', 'published');
 
@@ -47,7 +47,7 @@ class MonthlyReportController extends Controller
         ]);
     }
 
-    public function show($id): JsonResponse
+    public function publicShow($id): JsonResponse
     {
         $report = MonthlyReport::where('status', 'published')->find($id);
 
@@ -64,7 +64,7 @@ class MonthlyReportController extends Controller
         ]);
     }
 
-    public function filters(): JsonResponse
+    public function publicFilters(): JsonResponse
     {
         $years = MonthlyReport::where('status', 'published')
             ->distinct('year')
@@ -92,7 +92,7 @@ class MonthlyReportController extends Controller
         ]);
     }
 
-    public function statistics(): JsonResponse
+    public function publicStatistics(): JsonResponse
     {
         $totalReports = MonthlyReport::where('status', 'published')->count();
         $thisYearReports = MonthlyReport::where('status', 'published')
@@ -116,7 +116,7 @@ class MonthlyReportController extends Controller
         ]);
     }
 
-    // Admin methods - protected by auth
+    // ADMIN METHODS - protected by auth
     public function adminIndex(Request $request): JsonResponse
     {
         $query = MonthlyReport::query();

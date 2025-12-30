@@ -14,6 +14,16 @@ use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\KKIDProfileController;
 use App\Http\Controllers\FilePrintingController;
 
+
+// routes/api.php - Add this at the top
+Route::options('/{any}', function () {
+    return response('', 200)
+        ->header('Access-Control-Allow-Origin', 'http://localhost:3000')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true');
+})->where('any', '.*');
+
 // DEBUG ROUTES
 Route::get('/debug-routes', function() {
     $routes = collect(Route::getRoutes()->getRoutes())
@@ -45,10 +55,11 @@ Route::get('/check-auth', [LoginController::class, 'checkAuth']);
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/check-username', [RegisterController::class, 'checkUsername']);
 
+
 Route::get('/login', function () {
     return response()->json([
-        'message' => 'Authentication required. Please login.'
-    ], 401);
+        'message' => 'Please use POST /api/login to authenticate'
+    ]);
 })->name('login');
 
 // Public APIs (No authentication required)

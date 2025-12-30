@@ -11,13 +11,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+
+    
     ->withMiddleware(function (Middleware $middleware): void {
-        // Register custom middleware aliases here
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
         ]);
 
-        // ✅ FIXED: API middleware group WITH EnsureFrontendRequestsAreStateful
         $middleware->group('api', [
           // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
