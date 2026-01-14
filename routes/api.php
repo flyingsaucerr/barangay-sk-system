@@ -14,8 +14,6 @@ use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\KKIDProfileController;
 use App\Http\Controllers\FilePrintingController;
 
-
-// routes/api.php - Add this at the top
 Route::options('/{any}', function () {
     return response('', 200)
         ->header('Access-Control-Allow-Origin', 'http://localhost:3000')
@@ -44,6 +42,55 @@ Route::get('/debug-test', function() {
         'message' => 'API is working!',
         'timestamp' => now()
     ]);
+});
+
+// Add to your routes/api.php
+Route::get('/admin/printing/debug/file-storage', function () {
+    try {
+        // List all files in printing-requests directory
+        $files = Storage::disk('public')->allFiles('printing-requests');
+        
+        $fileDetails = [];
+        foreach ($files as $file) {
+            $fileDetails[] = [
+                'path' => $file,
+                'size' => Storage::disk('public')->size($file),
+                'mime_type' => Storage::disk('public')->mimeType($file),
+                'url' => Storage::disk('public')->url($file),
+                'exists' => Storage::disk('public')->exists($file)
+            ];
+        }
+        
+        // Get all printing requests
+        $requests = \App\Models\FilePrintingRequest::all();
+        $requestFiles = [];
+        
+        foreach ($requests as $request) {
+            $files = $request->files;
+            if (is_string($files)) {
+                $files = json_decode($files, true);
+            }
+            
+            $requestFiles[] = [
+                'id' => $request->id,
+                'tracking' => $request->tracking_number,
+                'files' => $files,
+                'files_count' => is_array($files) ? count($files) : 0
+            ];
+        }
+        
+        return response()->json([
+            'success' => true,
+            'storage_files' => $fileDetails,
+            'requests' => $requestFiles
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
 });
 
 // Authentication routes
@@ -86,6 +133,7 @@ Route::middleware('api')->group(function () {
     // File Printing
     Route::prefix('printing')->group(function () {
     Route::post('/submit', [FilePrintingController::class, 'store']);
+    Route::post('/submit-with-files', [FilePrintingController::class, 'storeWithFiles']);
     Route::post('/upload-files', [FilePrintingController::class, 'uploadFiles']);
     Route::post('/check-status', [FilePrintingController::class, 'checkStatus']);
 });
@@ -152,10 +200,13 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // File Printing
-     Route::prefix('admin/printing')->group(function () {
-        Route::get('/', [FilePrintingController::class, 'index']);
-        Route::get('/{id}', [FilePrintingController::class, 'show']);
-        Route::patch('/{id}/status', [FilePrintingController::class, 'updateStatus']);
-        Route::delete('/{id}', [FilePrintingController::class, 'destroy']);
-    });
+Route::prefix('admin/printing')->group(function () {
+    Route::get('/', [FilePrintingController::class, 'index']);
+    Route::get('/{id}', [FilePrintingController::class, 'show']);
+    Route::get('/{id}/download/{filename}', [FilePrintingController::class, 'downloadFile']); // This is the download route
+    Route::get('/{id}/file/{filename}/url', [FilePrintingController::class, 'getFileUrl']);
+    Route::get('/debug/file-storage', [FilePrintingController::class, 'debugFileStorage']); // Add debug route
+    Route::patch('/{id}/status', [FilePrintingController::class, 'updateStatus']);
+    Route::delete('/{id}', [FilePrintingController::class, 'destroy']);
+});
 });

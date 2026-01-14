@@ -55,107 +55,87 @@ const FilePrinting = () => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (files.length === 0) {
-      toast.error("Please select at least one file to print");
-      return;
-    }
-    if (!requesterName.trim()) {
-      toast.error("Please provide your name");
-      return;
-    }
-    if (!contactInfo.trim()) {
-      toast.error("Please provide your contact information");
-      return;
-    }
+  if (files.length === 0) {
+    toast.error("Please select at least one file to print");
+    return;
+  }
+  if (!requesterName.trim()) {
+    toast.error("Please provide your name");
+    return;
+  }
+  if (!contactInfo.trim()) {
+    toast.error("Please provide your contact information");
+    return;
+  }
 
-    setSubmitting(true);
+  setSubmitting(true);
 
-    try {
-      // First, create the printing request
-      const requestData = {
-        requester_name: requesterName,
-        contact_number: contactInfo,
-        email: email || null,
-        notes: notes || null,
-        copies: copies,
-        files: files.map(file => ({
-          name: file.name,
-          size: file.size,
-          type: file.type
-        }))
-      };
+  try {
+    // Use FormData to send everything
+    const formData = new FormData();
+    
+    // Add text fields
+    formData.append('requester_name', requesterName);
+    formData.append('contact_number', contactInfo);
+    formData.append('copies', copies.toString());
+    if (email) formData.append('email', email);
+    if (notes) formData.append('notes', notes);
+    
+    // Add files
+    files.forEach(file => {
+      formData.append('files[]', file);
+    });
 
-      const response = await fetch('/api/printing/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
+    // Use the existing endpoint
+    const response = await fetch('/api/printing/submit', {
+      method: 'POST',
+      body: formData, // Don't set Content-Type header for FormData
+    });
 
-      const data = await response.json();
+    const data = await response.json();
+    
+    if (data.success) {
+      toast.success(
+        <div className="space-y-2">
+          <div className="font-semibold">Printing request submitted successfully!</div>
+          <div className="text-sm">Tracking Number: <span className="font-mono font-bold">{data.tracking_number}</span></div>
+          <div className="text-sm">Save this number to check your request status.</div>
+        </div>
+      );
+
+      // Reset form
+      setFiles([]);
+      setNotes("");
+      setCopies(1);
+      setRequesterName("");
+      setContactInfo("");
+      setEmail("");
+
+      const fileInput = document.getElementById("file-input");
+      if (fileInput) fileInput.value = "";
       
-      if (data.success) {
-        // Now upload the actual files
-        const formData = new FormData();
-        formData.append('tracking_number', data.tracking_number);
-        files.forEach(file => {
-          formData.append('files[]', file);
+      // Show the status check section
+      setTrackingNumber(data.tracking_number);
+      setStatusContactInfo(contactInfo);
+      setShowStatusCheck(true);
+    } else {
+      toast.error(data.message || 'Failed to submit printing request');
+      if (data.errors) {
+        Object.values(data.errors).flat().forEach(error => {
+          toast.error(error);
         });
-
-        const uploadResponse = await fetch('/api/printing/upload-files', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const uploadData = await uploadResponse.json();
-        
-        if (uploadData.success) {
-          toast.success(
-            <div className="space-y-2">
-              <div className="font-semibold">Printing request submitted successfully!</div>
-              <div className="text-sm">Tracking Number: <span className="font-mono font-bold">{data.tracking_number}</span></div>
-              <div className="text-sm">Save this number to check your request status.</div>
-            </div>
-          );
-
-          // Reset form
-          setFiles([]);
-          setNotes("");
-          setCopies(1);
-          setRequesterName("");
-          setContactInfo("");
-          setEmail("");
-
-          const fileInput = document.getElementById("file-input");
-          if (fileInput) fileInput.value = "";
-          
-          // Show the status check section
-          setTrackingNumber(data.tracking_number);
-          setStatusContactInfo(contactInfo);
-          setShowStatusCheck(true);
-        } else {
-          toast.error(uploadData.message || 'Failed to upload files');
-        }
-      } else {
-        toast.error(data.message || 'Failed to submit printing request');
-        if (data.errors) {
-          Object.values(data.errors).flat().forEach(error => {
-            toast.error(error);
-          });
-        }
       }
-    } catch (error) {
-      console.error('Submission error:', error);
-      toast.error('Failed to submit printing request. Please try again.');
-    } finally {
-      setSubmitting(false);
     }
-  };
+  } catch (error) {
+    console.error('Submission error:', error);
+    toast.error('Failed to submit printing request. Please try again.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleCheckStatus = async (e) => {
     e.preventDefault();
