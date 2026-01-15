@@ -494,136 +494,141 @@ const handleDownloadFile = async (requestId, file) => {
       {showDetails && selectedRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-2xl font-bold">Printing Request Details</h2>
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-2xl font-bold text-gray-900">{getRequestTitle(selectedRequest)}</h2>
               <button
                 onClick={() => setShowDetails(false)}
                 className="text-gray-500 hover:text-gray-700"
+                disabled={updating === selectedRequest.id}
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
             
             <div className="p-6 space-y-6">
-              {/* Request Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold mb-2">Requester Information</h3>
-                  <div className="space-y-2">
-                    <p><span className="font-medium">Name:</span> {selectedRequest.requester_name}</p>
-                    <p><span className="font-medium">Contact:</span> {selectedRequest.contact_number}</p>
-                    {selectedRequest.email && (
-                      <p><span className="font-medium">Email:</span> {selectedRequest.email}</p>
-                    )}
-                  </div>
+              {/* Header Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-500" />
+                  <span className="font-medium">{getContactName(selectedRequest)}</span>
                 </div>
-                
-                <div>
-                  <h3 className="font-semibold mb-2">Request Details</h3>
-                  <div className="space-y-2">
-                    <p><span className="font-medium">Tracking:</span> 
-                      <span className="font-mono ml-2">{selectedRequest.tracking_number}</span>
-                    </p>
-                    <p><span className="font-medium">Copies:</span> {selectedRequest.copies}</p>
-                    <p><span className="font-medium">Status:</span> 
-                      <Badge className={`ml-2 ${statusColors[selectedRequest.status]}`}>
-                        {selectedRequest.status.charAt(0).toUpperCase() + selectedRequest.status.slice(1)}
-                      </Badge>
-                    </p>
-                    <p><span className="font-medium">Submitted:</span> {formatDate(selectedRequest.submitted_at)}</p>
-                    {selectedRequest.processed_at && (
-                      <p><span className="font-medium">Processed:</span> {formatDate(selectedRequest.processed_at)}</p>
-                    )}
-                    {selectedRequest.ready_at && (
-                      <p><span className="font-medium">Ready:</span> {formatDate(selectedRequest.ready_at)}</p>
-                    )}
-                    {selectedRequest.completed_at && (
-                      <p><span className="font-medium">Completed:</span> {formatDate(selectedRequest.completed_at)}</p>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-500" />
+                  <span>{getContactNumber(selectedRequest)}</span>
+                </div>
+                <div className="flex items-center gap-2 md:col-span-2">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  <span>{getAddress(selectedRequest)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <span>Submitted: {formatDate(getCreatedAt(selectedRequest))}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={getStatusColor(getStatus(selectedRequest))}>
+                    Status: {getStatusText(getStatus(selectedRequest))}
+                  </Badge>
                 </div>
               </div>
 
-              {/* Files */}
-              {(() => {
-                const files = getFiles(selectedRequest);
-                if (files.length > 0) {
-                  return (
-                    <div>
-                      <h3 className="font-semibold mb-3">Files to Print ({files.length})</h3>
-                      <div className="space-y-3">
-                        {files.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
-                            <div className="flex items-center gap-3">
-                              <FileText className="h-5 w-5 text-muted-foreground" />
-                              <div>
-                                <p className="font-medium">{file.original_name || file.filename || `File ${index + 1}`}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatFileSize(file.size)} • {file.mime_type || file.type || 'Unknown type'}
-                                </p>
-                                {file.uploaded_at && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Uploaded: {formatDate(file.uploaded_at)}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleDownloadFile(selectedRequest.id, file)}  // Pass both parameters
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+              {/* Request Type */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-blue-800 font-medium">
+                  Request Type: {getTypeText(getRequestType(selectedRequest))}
+                </p>
+              </div>
 
-              {/* Notes */}
-              {(selectedRequest.notes || selectedRequest.admin_notes) && (
-                <div>
-                  <h3 className="font-semibold mb-2">Notes</h3>
-                  {selectedRequest.notes && (
-                    <div className="mb-3">
-                      <p className="text-sm font-medium mb-1">Requester Notes:</p>
-                      <div className="p-3 bg-gray-50 rounded border">
-                        {selectedRequest.notes}
-                      </div>
-                    </div>
-                  )}
-                  {selectedRequest.admin_notes && (
+              {/* Full Description */}
+              <div>
+                <h3 className="font-semibold mb-2">Request Details</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-gray-700 whitespace-pre-line">{getDescription(selectedRequest)}</p>
+                </div>
+              </div>
+
+              {/* Admin Actions */}
+              {isLikelyLoggedIn() && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Manage Request</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-medium mb-1">Admin Notes:</p>
-                      <div className="p-3 bg-blue-50 rounded border">
-                        {selectedRequest.admin_notes}
-                      </div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status
+                      </label>
+                      <Select 
+                        value={getStatus(selectedRequest)} 
+                        onValueChange={(value) => handleStatusChange(selectedRequest.id, { status: value })}
+                        disabled={updating === selectedRequest.id}
+                      >
+                        <SelectTrigger>
+                          {updating === selectedRequest.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <SelectValue />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Assigned To
+                      </label>
+                      <Select 
+                        value={selectedRequest.assigned_to || ''} 
+                        onValueChange={(value) => handleAssignTo(selectedRequest.id, { assigned_to: value })}
+                        disabled={updating === selectedRequest.id}
+                      >
+                        <SelectTrigger>
+                          {updating === selectedRequest.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <SelectValue placeholder="Unassigned" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Unassigned</SelectItem>
+                          <SelectItem value="1">Admin User 1</SelectItem>
+                          <SelectItem value="2">Admin User 2</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Admin Notes
+                    </label>
+                    <Textarea
+                      value={getNotes(selectedRequest) || ''}
+                      onChange={(e) => {
+                        setSelectedRequest({...selectedRequest, notes: e.target.value});
+                      }}
+                      onBlur={() => handleAddNote(selectedRequest.id, selectedRequest.notes || '')}
+                      rows="3"
+                      className="w-full p-2 border border-gray-300 rounded-lg"
+                      placeholder="Add notes or comments about this request..."
+                      disabled={updating === selectedRequest.id}
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* Status Actions */}
-              <div className="border-t pt-6">
-                <h3 className="font-semibold mb-3">Update Status</h3>
-                <div className="flex flex-wrap gap-2">
-                  {['pending', 'processing', 'ready', 'completed', 'cancelled'].map((status) => (
-                    <Button
-                      key={status}
-                      variant={selectedRequest.status === status ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => updateStatus(selectedRequest.id, status)}
-                      disabled={selectedRequest.status === status}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </Button>
-                  ))}
-                </div>
+              {/* Action Buttons */}
+              <div className="flex gap-4 pt-6 border-t">
+                <button
+                  onClick={() => setShowDetails(false)}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
+                  disabled={updating === selectedRequest.id}
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

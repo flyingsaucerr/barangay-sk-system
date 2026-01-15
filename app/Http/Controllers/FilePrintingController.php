@@ -85,8 +85,7 @@ class FilePrintingController extends Controller
         try {
             Log::info('Store method called', [
                 'has_files' => $request->hasFile('files'),
-                'files_count' => $request->hasFile('files') ? count($request->file('files')) : 0,
-                'request_data' => $request->except('files')
+                'files_count' => $request->hasFile('files') ? count($request->file('files')) : 0
             ]);
             
             // Check if request has files (FormData) or is JSON
@@ -99,7 +98,7 @@ class FilePrintingController extends Controller
                     'notes' => 'nullable|string',
                     'copies' => 'required|integer|min:1|max:10',
                     'files' => 'required|array|min:1|max:10',
-                    'files.*' => 'required|file|max:10240' // 10MB max
+                    'files.*' => 'required|file|max:10240|mimes:pdf,doc,docx,rtf,txt,jpg,jpeg,png,bmp,odt,ods,odp' // Add allowed mimes
                 ]);
                 
                 if ($validator->fails()) {
@@ -115,7 +114,8 @@ class FilePrintingController extends Controller
                 $uploadedFiles = [];
                 foreach ($request->file('files') as $file) {
                     $originalName = $file->getClientOriginalName();
-                    $filename = Str::random(20) . '_' . time() . '.' . $file->getClientOriginalExtension();
+                    $originalExtension = $file->getClientOriginalExtension();
+                    $filename = Str::random(20) . '_' . time() . '.' . $originalExtension;
                     $path = $file->storeAs('printing-requests', $filename, 'public');
                     
                     // Verify the file was stored
@@ -127,7 +127,20 @@ class FilePrintingController extends Controller
                     $storedSize = Storage::disk('public')->size($path);
                     $storedMime = Storage::disk('public')->mimeType($path);
                     
+                    // For DOCX files, ensure proper MIME type
+                    if ($originalExtension === 'docx' && $storedMime !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                        // Force correct MIME type for DOCX
+                        $storedMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                    }
+                    
+                    // For DOC files
+                    if ($originalExtension === 'doc' && $storedMime !== 'application/msword') {
+                        $storedMime = 'application/msword';
+                    }
+                    
                     Log::info('File storage verification:', [
+                        'original_name' => $originalName,
+                        'original_extension' => $originalExtension,
                         'original_size' => $file->getSize(),
                         'stored_size' => $storedSize,
                         'stored_mime' => $storedMime,
@@ -142,8 +155,9 @@ class FilePrintingController extends Controller
                         'original_name' => $originalName,
                         'filename' => $filename,
                         'path' => $path,
-                        'size' => $storedSize, // Use actual stored size
-                        'mime_type' => $storedMime, // Use actual mime type
+                        'size' => $storedSize,
+                        'mime_type' => $storedMime,
+                        'extension' => $originalExtension, // Store extension separately
                         'uploaded_at' => now()->toDateTimeString()
                     ];
                 }
@@ -158,7 +172,7 @@ class FilePrintingController extends Controller
                     'copies' => $request->copies,
                     'status' => 'pending',
                     'submitted_at' => now(),
-                    'files' => $uploadedFiles // Store files as JSON
+                    'files' => $uploadedFiles
                 ]);
                 
                 Log::info('Request created with files:', [
@@ -196,24 +210,10 @@ class FilePrintingController extends Controller
                     'copies' => $request->copies,
                     'status' => 'pending',
                     'submitted_at' => now(),
-                    'files' => [] // Empty array
-                ]);
-                
-                Log::info('Request created without files:', [
-                    'id' => $printingRequest->id,
-                    'tracking' => $printingRequest->tracking_number
+                    'files' => []
                 ]);
             }
             
-            // Verify the created record
-            $createdRecord = FilePrintingRequest::find($printingRequest->id);
-            Log::info('Record verified:', [
-                'id' => $createdRecord->id,
-                'files_field' => $createdRecord->files,
-                'files_is_array' => is_array($createdRecord->files),
-                'files_count' => is_array($createdRecord->files) ? count($createdRecord->files) : 0
-            ]);
-
             return response()->json([
                 'success' => true,
                 'message' => 'Printing request submitted successfully',
@@ -443,73 +443,137 @@ class FilePrintingController extends Controller
 public function downloadFile($id, $filename)
 {
     try {
-        Log::info('DownloadFile called', ['id' => $id, 'filename' => $filename]);
+        Log::info('DownloadFile called', [
+            'id' => $id, 
+            'filename' => $filename,
+            'auth_user' => auth()->id()
+        ]);
         
         $request = FilePrintingRequest::findOrFail($id);
         
-        // Find the file in the files array
-        $file = null;
-        $files = is_array($request->files) ? $request->files : [];
+        // Debug: Log the files structure
+        Log::info('Request files structure:', [
+            'files_field' => $request->files,
+            'files_type' => gettype($request->files),
+            'files_json' => json_encode($request->files)
+        ]);
         
+        // Parse files if it's a string
+        $files = $request->files;
+        if (is_string($files)) {
+            $files = json_decode($files, true);
+        }
+        
+        if (!is_array($files)) {
+            Log::warning('Files is not an array', ['files' => $files]);
+            abort(404, 'No files found');
+        }
+        
+        // Find the file
+        $file = null;
         foreach ($files as $f) {
+            Log::debug('Checking file:', [
+                'file_filename' => $f['filename'] ?? null,
+                'searching_for' => $filename
+            ]);
+            
             if (isset($f['filename']) && $f['filename'] === $filename) {
                 $file = $f;
                 break;
             }
         }
         
-        if (!$file || !isset($file['path'])) {
-            Log::warning('File not found for download', ['id' => $id, 'filename' => $filename]);
-            abort(404, 'File not found');
+        if (!$file) {
+            Log::warning('File not found in array', [
+                'filename' => $filename,
+                'available_files' => array_column($files, 'filename')
+            ]);
+            abort(404, 'File not found in request');
         }
         
-        $path = $file['path'];
-        $originalName = $file['original_name'] ?? $filename;
+        // Verify path exists
+        $path = $file['path'] ?? null;
+        if (!$path) {
+            Log::warning('No path in file object', ['file' => $file]);
+            abort(404, 'File path not specified');
+        }
         
+        Log::info('Attempting to download file:', [
+            'path' => $path,
+            'storage_path' => Storage::disk('public')->path($path),
+            'exists' => Storage::disk('public')->exists($path)
+        ]);
+        
+        // Check if file exists
         if (!Storage::disk('public')->exists($path)) {
-            Log::warning('File path does not exist', ['path' => $path]);
+            Log::warning('File does not exist at path:', [
+                'path' => $path,
+                'full_path' => Storage::disk('public')->path($path)
+            ]);
             
-            // Try alternative path format
-            $altPath = str_replace('printing-requests/', '', $path);
-            if (Storage::disk('public')->exists($altPath)) {
-                $path = $altPath;
-                Log::info('Found file with alternative path', ['path' => $path]);
-            } else {
-                abort(404, 'File does not exist on server');
+            // Try to find the file in alternative locations
+            $searchPaths = [
+                $path,
+                'printing-requests/' . basename($path),
+                basename($path),
+                str_replace('printing-requests/', '', $path)
+            ];
+            
+            foreach ($searchPaths as $searchPath) {
+                if (Storage::disk('public')->exists($searchPath)) {
+                    $path = $searchPath;
+                    Log::info('Found file at alternative path:', ['path' => $path]);
+                    break;
+                }
+            }
+            
+            if (!Storage::disk('public')->exists($path)) {
+                abort(404, 'File not found on server: ' . $path);
             }
         }
         
-        // Get file info for logging
-        $fileInfo = [
+        // Get file details
+        $fileSize = Storage::disk('public')->size($path);
+        $mimeType = Storage::disk('public')->mimeType($path);
+        $originalName = $file['original_name'] ?? $filename;
+        
+        Log::info('File details:', [
             'path' => $path,
-            'original_name' => $originalName,
-            'size' => Storage::disk('public')->size($path),
-            'mime_type' => Storage::disk('public')->mimeType($path)
-        ];
+            'size' => $fileSize,
+            'mime_type' => $mimeType,
+            'original_name' => $originalName
+        ]);
         
-        Log::info('Downloading file info:', $fileInfo);
+        // Verify file is not empty
+        if ($fileSize === 0) {
+            Log::error('File is empty (0 bytes)', ['path' => $path]);
+            abort(500, 'File is empty');
+        }
         
-        // Set proper headers for download
+        // Set headers for download
         $headers = [
-            'Content-Type' => $fileInfo['mime_type'],
+            'Content-Type' => $mimeType,
             'Content-Disposition' => 'attachment; filename="' . $originalName . '"',
-            'Content-Length' => $fileInfo['size']
+            'Content-Length' => $fileSize,
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ];
         
-        // Return the file with proper headers
-        return response()->file(
-            Storage::disk('public')->path($path),
-            $headers
-        );
+        Log::info('Download headers set:', $headers);
+        
+        // Return the file as download response
+        return Storage::disk('public')->download($path, $originalName, $headers);
         
     } catch (\Exception $e) {
         Log::error('DownloadFile error:', [
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
         ]);
+        
         return response()->json([
             'success' => false,
-            'message' => 'Failed to download file',
+            'message' => 'Failed to download file: ' . $e->getMessage(),
             'error' => $e->getMessage()
         ], 500);
     }
