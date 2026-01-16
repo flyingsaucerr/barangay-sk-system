@@ -75,12 +75,29 @@ class RequestController extends Controller
     public function adminIndex(HttpRequest $request): JsonResponse
     {
         try {
+            $user = auth()->user();
             \Log::info('Admin requests accessed', [
-                'user_id' => auth()->id(),
+                'user_id' => $user->id,
+                'user_role' => $user->role,
                 'filters' => $request->all()
             ]);
 
             $query = Request::with(['assignedUser:id,name']);
+
+            // Role-based filtering
+            if ($user->role === 'staff') {
+                // Staff can only see requests assigned to them
+                $query->where('assigned_to', $user->id);
+            } elseif ($user->role === 'admin') {
+                // Admin can see all requests
+                // No filter needed
+            } else {
+                // Other roles (like resident) shouldn't access this
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access'
+                ], 403);
+            }
 
             // Status filter
             if ($request->has('status') && $request->status !== 'all') {
@@ -97,19 +114,24 @@ class RequestController extends Controller
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('title', 'like', "%{$search}%")
-                      ->orWhere('description', 'like', "%{$search}%")
-                      ->orWhere('contact_name', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('contact_name', 'like', "%{$search}%");
                 });
             }
 
             $requests = $query->orderBy('created_at', 'desc')->get();
 
-            \Log::info('Returning requests', ['count' => $requests->count()]);
+            \Log::info('Returning requests', [
+                'count' => $requests->count(),
+                'user_role' => $user->role,
+                'user_id' => $user->id
+            ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $requests,
-                'count' => $requests->count()
+                'count' => $requests->count(),
+                'user_role' => $user->role // Include user role in response
             ]);
 
         } catch (\Exception $e) {
@@ -127,16 +149,31 @@ class RequestController extends Controller
     public function adminStatistics(): JsonResponse
     {
         try {
-            // Use direct where clauses instead of scopes to avoid potential scope issues
-            $totalRequests = Request::count();
-            $pendingRequests = Request::where('status', 'pending')->count();
-            $inProgressRequests = Request::where('status', 'in_progress')->count();
-            $completedRequests = Request::where('status', 'completed')->count();
+            $user = auth()->user();
+            
+            // Base query with role-based filtering
+            $baseQuery = Request::query();
+            
+            if ($user->role === 'staff') {
+                $baseQuery->where('assigned_to', $user->id);
+            } elseif ($user->role === 'admin') {
+                // Admin sees all
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access'
+                ], 403);
+            }
+
+            $totalRequests = $baseQuery->count();
+            $pendingRequests = (clone $baseQuery)->where('status', 'pending')->count();
+            $inProgressRequests = (clone $baseQuery)->where('status', 'in_progress')->count();
+            $completedRequests = (clone $baseQuery)->where('status', 'completed')->count();
 
             $requestsByType = [
-                'solicitation' => Request::where('request_type', 'solicitation')->count(),
-                'suggestion' => Request::where('request_type', 'suggestion')->count(),
-                'change_request' => Request::where('request_type', 'change_request')->count(),
+                'solicitation' => (clone $baseQuery)->where('request_type', 'solicitation')->count(),
+                'suggestion' => (clone $baseQuery)->where('request_type', 'suggestion')->count(),
+                'change_request' => (clone $baseQuery)->where('request_type', 'change_request')->count(),
             ];
 
             return response()->json([
@@ -146,7 +183,8 @@ class RequestController extends Controller
                     'pending_requests' => $pendingRequests,
                     'in_progress_requests' => $inProgressRequests,
                     'completed_requests' => $completedRequests,
-                    'requests_by_type' => $requestsByType
+                    'requests_by_type' => $requestsByType,
+                    'user_role' => $user->role
                 ]
             ]);
 
@@ -165,21 +203,9 @@ class RequestController extends Controller
     public function updateStatus(HttpRequest $request, $id): JsonResponse
     {
         try {
-            $validator = Validator::make($request->all(), [
-                'status' => 'required|in:pending,in_progress,completed,rejected',
-                'assigned_to' => 'nullable|exists:users,id',
-                'notes' => 'nullable|string'
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
+            // Get the current request
             $requestModel = Request::find($id);
-
+            
             if (!$requestModel) {
                 return response()->json([
                     'success' => false,
@@ -187,35 +213,70 @@ class RequestController extends Controller
                 ], 404);
             }
 
-            $requestModel->update([
-                'status' => $request->status,
-                'assigned_to' => $request->assigned_to,
-                'notes' => $request->notes
+            // Make status optional - use existing status if not provided
+            $validator = Validator::make($request->all(), [
+                'status' => 'sometimes|in:pending,in_progress,completed,rejected',
+                'assigned_to' => 'nullable|integer|exists:users,id',
+                'notes' => 'nullable|string'
             ]);
+
+            if ($validator->fails()) {
+                Log::warning('Update status validation failed', [
+                    'errors' => $validator->errors()->toArray(),
+                    'input' => $request->all()
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Prepare update data
+            $updateData = [];
+            
+            // Only update fields that are provided
+            if ($request->has('status')) {
+                $updateData['status'] = $request->status;
+            } else {
+                // If status not provided, use existing status
+                $updateData['status'] = $requestModel->status;
+            }
+            
+            if ($request->has('notes')) {
+                $updateData['notes'] = $request->notes;
+            }
+            
+            if ($request->has('assigned_to')) {
+                $updateData['assigned_to'] = $request->assigned_to ?: null;
+            }
+
+            $requestModel->update($updateData);
 
             // Reload with relationships
             $requestModel->load('assignedUser:id,name');
 
-            Log::info('Request status updated', [
-                'id' => $requestModel->id,
-                'status' => $requestModel->status,
-                'assigned_to' => $requestModel->assigned_to
-            ]);
+        Log::info('Request updated', [
+            'id' => $requestModel->id,
+            'status' => $requestModel->status,
+            'assigned_to' => $requestModel->assigned_to,
+            'notes' => $requestModel->notes,
+            'updated_fields' => array_keys($updateData)
+        ]);
 
-            return response()->json([
-                'success' => true,
-                'data' => $requestModel,
-                'message' => 'Request status updated successfully'
-            ]);
+        return response()->json([
+            'success' => true,
+            'data' => $requestModel,
+            'message' => 'Request updated successfully'
+        ]);
 
-        } catch (\Exception $e) {
-            Log::error('Error updating request status: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update request status'
-            ], 500);
-        }
+    } catch (\Exception $e) {
+        Log::error('Error updating request: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to update request'
+        ], 500);
     }
+}
 
     /**
      * Get single request details for admin (Protected)
@@ -278,4 +339,47 @@ class RequestController extends Controller
             ], 500);
         }
     }
+
+/**
+ * Get all staff users for assignment (Protected - Admin only)
+ */
+public function getStaffUsers(): JsonResponse
+{
+    try {
+        $user = auth()->user();
+        
+        // Only admins can access this endpoint
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized access'
+            ], 403);
+        }
+        
+        // Get only staff users (exclude admins)
+        $staffUsers = \App\Models\User::where('role', 'staff')
+            ->select('id', 'name', 'username', 'role', 'contact_number')
+            ->orderBy('name')
+            ->get();
+
+        Log::info('Staff users fetched', [
+            'count' => $staffUsers->count(),
+            'requested_by' => $user->id,
+            'role' => $user->role
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $staffUsers,
+            'count' => $staffUsers->count()
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error fetching staff users: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to retrieve staff users'
+        ], 500);
+    }
+}
 }

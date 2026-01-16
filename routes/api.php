@@ -13,6 +13,7 @@ use App\Http\Controllers\DisclosureController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\KKIDProfileController;
 use App\Http\Controllers\FilePrintingController;
+use App\Http\Controllers\UserController;
 
 Route::options('/{any}', function () {
     return response('', 200)
@@ -101,7 +102,7 @@ Route::get('/check-auth', [LoginController::class, 'checkAuth']);
 // Registration routes - should be public (outside auth middleware)
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/check-username', [RegisterController::class, 'checkUsername']);
-
+Route::get('/user', [UserController::class, 'getCurrentUser'])->middleware('auth:sanctum');
 
 Route::get('/login', function () {
     return response()->json([
@@ -160,12 +161,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
 
     // Requests Management (Admin only)
+    
     Route::prefix('admin')->group(function () {
+        Route::get('/staff', [RequestController::class, 'getStaffUsers']);
         Route::get('/requests', [RequestController::class, 'adminIndex']);
         Route::get('/requests/statistics', [RequestController::class, 'adminStatistics']);
         Route::get('/requests/{id}', [RequestController::class, 'adminShow']);
         Route::put('/requests/{id}/status', [RequestController::class, 'updateStatus']);
         Route::delete('/requests/{id}', [RequestController::class, 'destroy']);
+        Route::get('/staff', [RequestController::class, 'getStaffUsers']);
     });
 
     // Accomplishments Admin

@@ -20,7 +20,14 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  FileQuestion
+  FileQuestion,
+  Users,
+  Shield,
+  UserCog,
+  AlertTriangle,
+  Filter,
+  UserCheck,
+  UserX
 } from "lucide-react";
 
 const API = {
@@ -28,7 +35,8 @@ const API = {
   REQUEST_STATISTICS: '/api/admin/requests/statistics',
   UPDATE_STATUS: (id) => `/api/admin/requests/${id}/status`,
   GET_REQUEST: (id) => `/api/admin/requests/${id}`,
-  CHECK_AUTH: '/api/check-auth'
+  GET_STAFF: '/api/admin/staff',
+  GET_CURRENT_USER: '/api/user',
 };
 
 const AdminRequests = () => {
@@ -38,6 +46,9 @@ const AdminRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [requests, setRequests] = useState([]);
+  const [staffUsers, setStaffUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userRole, setUserRole] = useState(null); // Store user role separately
   const [statistics, setStatistics] = useState({
     total_requests: 0,
     pending_requests: 0,
@@ -52,8 +63,11 @@ const AdminRequests = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [userLoading, setUserLoading] = useState(false);
+  const [userError, setUserError] = useState(null);
+  const [assignmentFilter, setAssignmentFilter] = useState("all"); // New filter: all, assigned, unassigned
 
   const getToken = () => {
     return localStorage.getItem('authToken');
@@ -62,36 +76,6 @@ const AdminRequests = () => {
   const isLikelyLoggedIn = () => {
     const token = getToken();
     return !!token;
-  };
-
-  const checkAuthentication = async () => {
-    const token = getToken();
-    
-    if (!token) {
-      setAuthChecked(true);
-      return false;
-    }
-
-    try {
-      const response = await fetch(API.CHECK_AUTH, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        setAuthChecked(true);
-        return true;
-      } else {
-        setAuthChecked(true);
-        return false;
-      }
-    } catch (error) {
-      setAuthChecked(true);
-      return false;
-    }
   };
 
   const getAuthHeaders = (extra = {}) => {
@@ -109,6 +93,115 @@ const AdminRequests = () => {
     return headers;
   };
 
+  // Fetch current user info
+  const fetchCurrentUser = async () => {
+    setUserLoading(true);
+    setUserError(null);
+    
+    try {
+      const response = await fetch(API.GET_CURRENT_USER, {
+        headers: getAuthHeaders()
+      });
+
+      console.log('Current user response status:', response.status);
+
+      if (response.status === 401) {
+        console.warn('User not authenticated');
+        setCurrentUser(null);
+        setUserError('Not authenticated');
+        return;
+      }
+
+      if (!response.ok) {
+        console.warn('Failed to fetch current user:', response.status);
+        setUserError(`HTTP Error: ${response.status}`);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('Current user response data:', data);
+      
+      if (data && data.success && data.data) {
+        setCurrentUser(data.data);
+        setUserRole(data.data.role);
+      } else if (data && data.id) {
+        setCurrentUser(data);
+        setUserRole(data.role);
+      } else {
+        console.warn('Unexpected user data structure:', data);
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      setUserError(`Network error: ${error.message}`);
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  // Check if current user is admin
+  const isAdmin = () => {
+    return userRole === 'admin';
+  };
+
+  // Check if current user is staff
+  const isStaff = () => {
+    return userRole === 'staff';
+  };
+
+  // Check if user can edit (admin or staff)
+  const canEdit = () => {
+    return isAdmin() || isStaff();
+  };
+
+  // Check if user can see admin notes
+  const canSeeAdminNotes = () => {
+    return isAdmin() || isStaff();
+  };
+
+  // Check if user can see assignment controls
+  const canSeeAssignment = () => {
+    return isAdmin();
+  };
+
+  // Check if user can assign requests
+  const canAssignRequests = () => {
+    return isAdmin();
+  };
+
+  // Fetch all staff users (only for admins)
+  const fetchStaffUsers = async () => {
+    setStaffLoading(true);
+    try {
+      const response = await fetch(API.GET_STAFF, {
+        headers: getAuthHeaders()
+      });
+
+      console.log('Staff users response status:', response.status);
+
+      if (response.status === 403) {
+        console.log('User is not authorized to fetch staff users (not admin)');
+        setStaffUsers([]);
+        return;
+      }
+
+      if (!response.ok) {
+        console.warn('Failed to fetch staff users:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('Staff users data:', data);
+      
+      if (data && data.success) {
+        setStaffUsers(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching staff users:', error);
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
   // Fetch all requests
   const fetchRequests = async (showRefresh = false) => {
     if (showRefresh) {
@@ -122,6 +215,7 @@ const AdminRequests = () => {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (typeFilter !== 'all') params.append('type', typeFilter);
+      if (assignmentFilter !== 'all') params.append('assigned', assignmentFilter);
 
       const query = params.toString() ? `?${params.toString()}` : '';
       const url = `${API.REQUESTS}${query}`;
@@ -136,15 +230,22 @@ const AdminRequests = () => {
       }
 
       if (!response.ok) {
-        console.error('HTTP error:', response.status);
+        console.error('HTTP error:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
         setRequests([]);
         return;
       }
 
       const data = await response.json();
+      console.log('Requests data:', data);
 
       if (data && data.success) {
         setRequests(data.data || []);
+        // Update user role from response if available
+        if (data.user_role && !userRole) {
+          setUserRole(data.user_role);
+        }
       } else {
         console.warn('API response not successful');
         setRequests([]);
@@ -166,11 +267,16 @@ const AdminRequests = () => {
         headers: getAuthHeaders()
       });
 
+      console.log('Details response status:', response.status);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Details error response:', errorText);
         throw new Error(`Failed to fetch request details: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('Details data:', data);
       
       if (data.success) {
         return data.data;
@@ -198,29 +304,42 @@ const AdminRequests = () => {
       }
 
       const data = await response.json();
+      console.log('Statistics data:', data);
       if (data.success) {
         setStatistics(data.data || {});
+        // Update user role from statistics if available
+        if (data.data.user_role && !userRole) {
+          setUserRole(data.data.user_role);
+        }
       }
     } catch (error) {
       console.error('Error fetching statistics:', error);
     }
   };
 
-  // Update request status
-  const updateRequestStatus = async (id, statusData) => {
+  // Update request - with role-based permissions
+  const updateRequest = async (id, updateData) => {
     setUpdating(id);
     try {
+      console.log('Updating request:', { id, updateData });
+      
       const response = await fetch(API.UPDATE_STATUS(id), {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(statusData)
+        body: JSON.stringify(updateData)
       });
 
+      console.log('Update response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`Failed to update request`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Update failed with response:', errorData);
+        throw new Error(`Failed to update request: ${response.status} ${JSON.stringify(errorData)}`);
       }
 
       const data = await response.json();
+      console.log('Update success data:', data);
+      
       if (data.success) {
         // Refresh the list
         fetchRequests();
@@ -233,20 +352,68 @@ const AdminRequests = () => {
             setSelectedRequest(updatedDetails);
           }
         }
+        
+        return { success: true, message: 'Request updated successfully' };
       } else {
-        alert(data.message || 'Failed to update request');
+        return { success: false, message: data.message || 'Failed to update request' };
       }
     } catch (error) {
       console.error('Error updating request:', error);
-      alert('Failed to update request');
+      return { success: false, message: `Failed to update request: ${error.message}` };
     } finally {
       setUpdating(null);
     }
   };
 
+  // Update request status (available for admin and staff)
+  const updateStatus = async (id, status) => {
+    if (!canEdit()) {
+      alert('You do not have permission to update status');
+      return;
+    }
+    
+    const result = await updateRequest(id, { status });
+    if (result.success) {
+      alert('Status updated successfully');
+    } else {
+      alert(result.message);
+    }
+  };
+
+  // Update admin notes (admin only, but staff can view)
+  const updateNotes = async (id, notes) => {
+    if (!isAdmin()) {
+      alert('Only admins can update notes');
+      return;
+    }
+    
+    const result = await updateRequest(id, { notes });
+    if (result.success) {
+      alert('Notes updated successfully');
+    } else {
+      alert(result.message);
+    }
+  };
+
+  // Assign request (admin only)
+  const assignRequest = async (id, assigned_to) => {
+    if (!isAdmin()) {
+      alert('Only admins can assign requests');
+      return;
+    }
+    
+    const result = await updateRequest(id, { assigned_to });
+    if (result.success) {
+      alert('Request assigned successfully');
+    } else {
+      alert(result.message);
+    }
+  };
+
   // Handle view details
   const handleViewDetails = async (request) => {
-    setSelectedRequest(request); // Show basic info immediately
+    console.log('Viewing details for request:', request);
+    setSelectedRequest(request);
     setShowDetails(true);
     
     // Fetch full details in background
@@ -272,11 +439,10 @@ const AdminRequests = () => {
   useEffect(() => {
     const initialize = async () => {
       if (isLikelyLoggedIn()) {
-        await checkAuthentication();
+        await fetchCurrentUser();
         fetchRequests();
         fetchStatistics();
-      } else {
-        setAuthChecked(true);
+        fetchStaffUsers();
       }
     };
 
@@ -289,7 +455,19 @@ const AdminRequests = () => {
       fetchRequests();
       fetchStatistics();
     }
-  }, [searchTerm, statusFilter, typeFilter]);
+  }, [searchTerm, statusFilter, typeFilter, assignmentFilter]);
+
+  // Debug user state
+  useEffect(() => {
+    console.log('User state updated:', {
+      userRole,
+      isAdmin: isAdmin(),
+      isStaff: isStaff(),
+      canEdit: canEdit(),
+      canSeeAdminNotes: canSeeAdminNotes(),
+      canAssignRequests: canAssignRequests()
+    });
+  }, [userRole]);
 
   // Helper functions
   const getStatusColor = (status) => {
@@ -350,6 +528,19 @@ const AdminRequests = () => {
     }
   };
 
+  const getUserRoleBadge = (role) => {
+    switch (role) {
+      case "admin":
+        return <Badge className="bg-red-100 text-red-800 border-red-200"><Shield className="h-3 w-3 mr-1" />Admin</Badge>;
+      case "staff":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><UserCog className="h-3 w-3 mr-1" />Staff</Badge>;
+      case "resident":
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><User className="h-3 w-3 mr-1" />Resident</Badge>;
+      default:
+        return <Badge variant="outline">{role || 'Unknown'}</Badge>;
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -370,30 +561,50 @@ const AdminRequests = () => {
     });
   };
 
-  // Show loading while checking auth
-  if (!authChecked && isLikelyLoggedIn()) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading requests...</p>
-        </div>
-      </div>
-    );
-  }
+  // Get filtered requests based on assignment
+  const getFilteredRequests = () => {
+    let filtered = [...requests];
+    
+    // Staff can only see their assigned requests (handled by backend)
+    // Additional frontend filtering for assignment status (admin only)
+    if (isAdmin() && assignmentFilter !== 'all') {
+      if (assignmentFilter === 'assigned') {
+        filtered = filtered.filter(req => req.assigned_to);
+      } else if (assignmentFilter === 'unassigned') {
+        filtered = filtered.filter(req => !req.assigned_to);
+      }
+    }
+    
+    return filtered;
+  };
+
+  const filteredRequests = getFilteredRequests();
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
+      {/* Header with user info */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center space-x-2">
             <FileText className="h-8 w-8 text-primary" />
-            <span>Manage Requests</span>
+            <span>
+              {isStaff() ? 'My Assigned Requests' : 'Manage Requests'}
+            </span>
           </h1>
           <p className="text-muted-foreground mt-2">
-            Review and manage community requests, suggestions, and solicitations
+            {isStaff() 
+              ? 'View and manage requests assigned to you' 
+              : 'Review and manage community requests, suggestions, and solicitations'
+            }
           </p>
+          {userRole && (
+            <div className="flex items-center gap-2 mt-2">
+              {getUserRoleBadge(userRole)}
+              <span className="text-sm text-gray-600">
+                {isStaff() ? `Assigned to you: ${statistics.total_requests} requests` : ''}
+              </span>
+            </div>
+          )}
         </div>
         
         <Button 
@@ -416,7 +627,11 @@ const AdminRequests = () => {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
-            placeholder="Search requests by title, description, or contact name..."
+            placeholder={
+              isStaff() 
+                ? "Search your assigned requests..." 
+                : "Search requests by title, description, or contact name..."
+            }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -447,16 +662,32 @@ const AdminRequests = () => {
             <SelectItem value="change_request">Change Request</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Assignment filter (admin only) */}
+        {isAdmin() && (
+          <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
+            <SelectTrigger className="w-full md:w-48">
+              <SelectValue placeholder="Assignment" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Requests</SelectItem>
+              <SelectItem value="assigned">Assigned Only</SelectItem>
+              <SelectItem value="unassigned">Unassigned Only</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
-      {/* Statistics */}
+      {/* Statistics with role-based info */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-600 mb-1">
-              {statistics.pending_requests}
+              {statistics.total_requests}
             </div>
-            <div className="text-sm text-muted-foreground">Pending</div>
+            <div className="text-sm text-muted-foreground">
+              {isStaff() ? 'My Requests' : 'Total Requests'}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -478,12 +709,27 @@ const AdminRequests = () => {
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-purple-600 mb-1">
-              {statistics.total_requests}
+              {statistics.pending_requests}
             </div>
-            <div className="text-sm text-muted-foreground">Total Requests</div>
+            <div className="text-sm text-muted-foreground">Pending</div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Role-based information banner */}
+      {isStaff() && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <UserCheck className="h-5 w-5 text-blue-600" />
+            <div>
+              <p className="text-sm text-blue-700">
+                <strong>Staff View:</strong> You can only see requests assigned to you. 
+                You can view admin notes but only admins can edit them.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Login reminder */}
       {!isLikelyLoggedIn() && (
@@ -513,8 +759,9 @@ const AdminRequests = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {requests.map((request) => {
+          {filteredRequests.map((request) => {
             const StatusIcon = getStatusIcon(request.status);
+            const isAssignedToCurrentStaff = isStaff() && request.assigned_to === currentUser?.id;
             
             return (
               <Card key={request.id} className="hover:shadow-md transition-shadow duration-300">
@@ -527,6 +774,12 @@ const AdminRequests = () => {
                       <CardDescription className="flex items-center gap-2">
                         <Calendar className="h-3 w-3" />
                         <span className="text-xs">{formatDateShort(request.created_at)}</span>
+                        {isStaff() && isAssignedToCurrentStaff && (
+                          <Badge variant="outline" className="text-xs">
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Assigned to you
+                          </Badge>
+                        )}
                       </CardDescription>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -559,10 +812,26 @@ const AdminRequests = () => {
                     {request.description}
                   </div>
 
+                  {/* Assignment info for admin */}
+                  {isAdmin() && request.assigned_user && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <UserCog className="h-4 w-4 text-gray-400" />
+                      <span className="text-gray-600">
+                        Assigned to: <strong>{request.assigned_user.name}</strong>
+                      </span>
+                    </div>
+                  )}
+
                   {/* Quick actions */}
                   <div className="flex justify-between items-center pt-2">
                     <div className="text-xs text-gray-500">
                       ID: {request.id}
+                      {isAdmin() && !request.assigned_to && (
+                        <span className="ml-2 text-yellow-600">
+                          <UserX className="h-3 w-3 inline mr-1" />
+                          Unassigned
+                        </span>
+                      )}
                     </div>
                     <Button 
                       variant="outline" 
@@ -581,20 +850,22 @@ const AdminRequests = () => {
         </div>
       )}
 
-      {requests.length === 0 && !loading && isLikelyLoggedIn() && (
+      {filteredRequests.length === 0 && !loading && isLikelyLoggedIn() && (
         <div className="text-center py-12">
           <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">No requests found</h3>
           <p className="text-muted-foreground">
-            {searchTerm || statusFilter !== "all" || typeFilter !== "all"
+            {searchTerm || statusFilter !== "all" || typeFilter !== "all" || assignmentFilter !== "all"
               ? "Try adjusting your search or filters"
-              : "No requests have been submitted yet"}
+              : isStaff() 
+                ? "No requests have been assigned to you yet"
+                : "No requests have been submitted yet"}
           </p>
         </div>
       )}
 
       {/* Floating Details Modal */}
-      {showDetails && (
+      {showDetails && selectedRequest && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           {/* Backdrop */}
           <div 
@@ -613,17 +884,23 @@ const AdminRequests = () => {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">
-                      {selectedRequest?.title || 'Request Details'}
+                      {selectedRequest.title}
                     </h2>
                     <p className="text-sm text-gray-500">
-                      Request ID: {selectedRequest?.id}
+                      Request ID: {selectedRequest.id}
+                      {isStaff() && (
+                        <span className="ml-2 text-blue-600">
+                          <UserCheck className="h-3 w-3 inline mr-1" />
+                          Assigned to you
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleCloseDetails}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  disabled={detailLoading || updating === selectedRequest?.id}
+                  disabled={detailLoading || updating === selectedRequest.id}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -636,7 +913,7 @@ const AdminRequests = () => {
                     <Loader2 className="h-8 w-8 animate-spin mb-4" />
                     <p className="text-gray-500">Loading request details...</p>
                   </div>
-                ) : selectedRequest ? (
+                ) : (
                   <div className="p-6 space-y-6">
                     {/* Status and Type Badges */}
                     <div className="flex flex-wrap gap-2">
@@ -646,9 +923,16 @@ const AdminRequests = () => {
                       <Badge className={`text-sm px-3 py-1 ${getTypeColor(selectedRequest.request_type)}`}>
                         {getTypeText(selectedRequest.request_type)}
                       </Badge>
-                      {selectedRequest.assignedUser && (
+                      {selectedRequest.assigned_user && (
                         <Badge variant="secondary" className="text-sm px-3 py-1">
-                          Assigned to: {selectedRequest.assignedUser.name}
+                          <UserCog className="h-3 w-3 mr-1" />
+                          Assigned to: {selectedRequest.assigned_user.name}
+                        </Badge>
+                      )}
+                      {isStaff() && selectedRequest.assigned_to === currentUser?.id && (
+                        <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-sm px-3 py-1">
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Your Responsibility
                         </Badge>
                       )}
                     </div>
@@ -693,12 +977,8 @@ const AdminRequests = () => {
                             <p className="font-medium">{formatDate(selectedRequest.updated_at)}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-500">Status Updated</p>
-                            <p className="font-medium">
-                              {selectedRequest.status_updated_at 
-                                ? formatDate(selectedRequest.status_updated_at)
-                                : 'N/A'}
-                            </p>
+                            <p className="text-sm text-gray-500">Current Status</p>
+                            <p className="font-medium">{getStatusText(selectedRequest.status)}</p>
                           </div>
                         </div>
                       </div>
@@ -717,47 +997,72 @@ const AdminRequests = () => {
                       </div>
                     </div>
 
-                    {/* Admin Notes */}
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-lg">Admin Notes</h3>
-                      <Textarea
-                        value={selectedRequest.notes || ''}
-                        onChange={(e) => {
-                          setSelectedRequest({...selectedRequest, notes: e.target.value});
-                        }}
-                        onBlur={() => updateRequestStatus(selectedRequest.id, { 
-                          notes: selectedRequest.notes 
-                        })}
-                        rows="4"
-                        className="w-full"
-                        placeholder="Add notes or comments about this request..."
-                        disabled={updating === selectedRequest.id}
-                      />
-                      {selectedRequest.notes && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <p className="text-yellow-800 text-sm whitespace-pre-line">
-                            {selectedRequest.notes}
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                    {/* Admin Notes - Viewable by both admin and staff, editable only by admin */}
+                    {(canSeeAdminNotes() && (selectedRequest.notes || isAdmin())) && (
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                          <MessageSquare className="h-5 w-5" />
+                          Admin Notes
+                          {isStaff() && (
+                            <span className="text-sm text-gray-500">(View Only)</span>
+                          )}
+                        </h3>
+                        {isAdmin() ? (
+                          <>
+                            <Textarea
+                              value={selectedRequest.notes || ''}
+                              onChange={(e) => {
+                                setSelectedRequest({...selectedRequest, notes: e.target.value});
+                              }}
+                              onBlur={() => {
+                                if (selectedRequest.notes !== (selectedRequest.originalNotes || '')) {
+                                  updateNotes(selectedRequest.id, selectedRequest.notes || '');
+                                }
+                              }}
+                              rows="4"
+                              className="w-full"
+                              placeholder="Add notes or comments about this request..."
+                              disabled={updating === selectedRequest.id}
+                            />
+                            {selectedRequest.notes && (
+                              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                <p className="text-yellow-800 text-sm whitespace-pre-line">
+                                  {selectedRequest.notes}
+                                </p>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          // Staff view (read-only)
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            {selectedRequest.notes ? (
+                              <p className="text-yellow-800 text-sm whitespace-pre-line">
+                                {selectedRequest.notes}
+                              </p>
+                            ) : (
+                              <p className="text-yellow-600 text-sm italic">
+                                No admin notes for this request.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Management Actions */}
-                    {isLikelyLoggedIn() && (
+                    {canEdit() && (
                       <div className="space-y-4 border-t pt-6">
                         <h3 className="font-semibold text-lg">Manage Request</h3>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Status Update */}
+                        <div className={`grid ${canAssignRequests() ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'} gap-4`}>
+                          {/* Status Update (Available for admin and staff) */}
                           <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-700">
                               Update Status
                             </label>
                             <Select 
                               value={selectedRequest.status} 
-                              onValueChange={(value) => updateRequestStatus(selectedRequest.id, { 
-                                status: value 
-                              })}
+                              onValueChange={(value) => updateStatus(selectedRequest.id, value)}
                               disabled={updating === selectedRequest.id}
                             >
                               <SelectTrigger>
@@ -796,46 +1101,52 @@ const AdminRequests = () => {
                             </Select>
                           </div>
 
-                          {/* Assignment */}
-                          <div className="space-y-2">
-                            <label className="block text-sm font-medium text-gray-700">
-                              Assign To
-                            </label>
-                            <Select 
-                              value={selectedRequest.assigned_to || ''} 
-                              onValueChange={(value) => updateRequestStatus(selectedRequest.id, { 
-                                assigned_to: value 
-                              })}
-                              disabled={updating === selectedRequest.id}
-                            >
-                              <SelectTrigger>
-                                {updating === selectedRequest.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <SelectValue placeholder="Unassigned" />
-                                )}
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="">Unassigned</SelectItem>
-                                <SelectItem value="1">Admin User 1</SelectItem>
-                                <SelectItem value="2">Admin User 2</SelectItem>
-                                <SelectItem value="3">Admin User 3</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          {/* Assignment - Show only for admins */}
+                          {canAssignRequests() && (
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                                <Users className="h-4 w-4" />
+                                Assign To
+                              </label>
+                              {staffLoading ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span className="text-sm text-gray-500">Loading staff...</span>
+                                </div>
+                              ) : (
+                                <Select 
+                                  value={selectedRequest.assigned_to?.toString() || "unassigned"} 
+                                  onValueChange={(value) => {
+                                    const assignedValue = value === "unassigned" ? null : parseInt(value);
+                                    assignRequest(selectedRequest.id, assignedValue);
+                                  }}
+                                  disabled={updating === selectedRequest.id}
+                                >
+                                  <SelectTrigger>
+                                    {updating === selectedRequest.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <SelectValue placeholder="Select staff member" />
+                                    )}
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                                    {staffUsers.map((staff) => (
+                                      <SelectItem key={staff.id} value={staff.id.toString()}>
+                                        <div className="flex items-center gap-2">
+                                          <User className="h-4 w-4" />
+                                          <span>{staff.name} ({staff.role})</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
-                  </div>
-                ) : (
-                  <div className="p-12 text-center">
-                    <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                      Request details not available
-                    </h3>
-                    <p className="text-gray-500">
-                      Unable to load request details. Please try again.
-                    </p>
                   </div>
                 )}
               </div>
@@ -844,11 +1155,7 @@ const AdminRequests = () => {
               <div className="border-t p-4 bg-gray-50">
                 <div className="flex justify-between items-center">
                   <div className="text-sm text-gray-500">
-                    {selectedRequest && (
-                      <>
-                        Created: {formatDate(selectedRequest.created_at)}
-                      </>
-                    )}
+                    Created: {formatDate(selectedRequest?.created_at)}
                   </div>
                   <div className="flex gap-3">
                     <Button
@@ -866,7 +1173,7 @@ const AdminRequests = () => {
                         {refreshing || loading ? (
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         ) : null}
-                        Refresh Data
+                        Refresh
                       </Button>
                     )}
                   </div>
