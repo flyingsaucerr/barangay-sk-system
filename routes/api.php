@@ -201,6 +201,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [KKIDProfileController::class, 'update']);
         Route::delete('/{id}', [KKIDProfileController::class, 'destroy']);
         Route::patch('/{id}/status', [KKIDProfileController::class, 'updateStatus']);
+        Route::get('/kkid-profiles/{id}/generate-id', [KKIDController::class, 'generateID']);
     });
 
     // File Printing

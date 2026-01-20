@@ -6,19 +6,28 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { User, Search, Plus, Edit, Trash2, X, Eye, Calendar, Phone, MapPin, Mail, Loader2 } from "lucide-react";
+import { 
+  User, Search, Plus, Edit, Trash2, X, Eye, Calendar, Phone, MapPin, Mail, 
+  Loader2, Printer, Download, Camera, QrCode, Barcode, Signature, Clock
+} from "lucide-react";
 import { toast } from "sonner";
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+
 
 const AdminKKID = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showIDModal, setShowIDModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState(null);
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const [selectedIDProfile, setSelectedIDProfile] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [statistics, setStatistics] = useState({
     total: 0,
     approved: 0,
@@ -49,85 +58,116 @@ const AdminKKID = () => {
     status: 'pending'
   };
 
+    const printStyles = `
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      
+      #id-card-template, #id-card-template * {
+        visibility: visible;
+      }
+      
+      #id-card-template {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 3.375in !important;
+        height: 2.125in !important;
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+      }
+      
+      * {
+        -webkit-print-color-adjust: exact;
+      }
+      
+      @page {
+        margin: 0;
+        size: 3.375in 2.125in;
+      }
+    }
+  `;
+
+
   const [formData, setFormData] = useState(initialFormData);
 
   // Fetch profiles
-const fetchProfiles = async () => {
-  try {
-    setLoading(true);
-    const token = localStorage.getItem('authToken');
-    
-    let url = '/api/kkid-profiles';
-    const params = new URLSearchParams();
-    
-    if (searchTerm) params.append('search', searchTerm);
-    if (statusFilter !== 'all') params.append('status', statusFilter);
-    
-    if (params.toString()) url += `?${params.toString()}`;
-    
-    const headers = {
-      'Accept': 'application/json',
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    const response = await fetch(url, {
-      headers: headers,
-      credentials: 'include'
-    });
-
-    const data = await response.json();
-    
-    if (response.ok && data.success) {
-      setProfiles(data.data.data || data.data || []);
-      setStatistics(data.statistics || {
-        total: data.data?.total || 0,
-        approved: data.data?.approved || 0,
-        pending: data.data?.pending || 0,
-        rejected: data.data?.rejected || 0
+  const fetchProfiles = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      
+      let url = '/api/kkid-profiles';
+      const params = new URLSearchParams();
+      
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      const headers = {
+        'Accept': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(url, {
+        headers: headers,
+        credentials: 'include'
       });
-    } else {
-      // Show specific error message
-      let errorMessage = data.message || 'Failed to fetch profiles';
+
+      const data = await response.json();
       
-      if (data.error) {
-        errorMessage += `: ${data.error}`;
+      if (response.ok && data.success) {
+        setProfiles(data.data.data || data.data || []);
+        setStatistics(data.statistics || {
+          total: data.data?.total || 0,
+          approved: data.data?.approved || 0,
+          pending: data.data?.pending || 0,
+          rejected: data.data?.rejected || 0
+        });
+      } else {
+        let errorMessage = data.message || 'Failed to fetch profiles';
+        
+        if (data.error) {
+          errorMessage += `: ${data.error}`;
+        }
+        
+        if (data.errors) {
+          errorMessage += ' - ' + Object.values(data.errors).flat().join(', ');
+        }
+        
+        toast.error(errorMessage);
+        
+        if (response.status === 401) {
+          toast.error('Session expired. Please login again.');
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userName');
+          navigate('/admin/login');
+        }
       }
+    } catch (error) {
+      console.error('Error fetching profiles:', error);
+      toast.error('Failed to load KKID profiles. Please check your connection.');
       
-      if (data.errors) {
-        errorMessage += ' - ' + Object.values(data.errors).flat().join(', ');
-      }
-      
-      toast.error(errorMessage);
-      
-      // If it's an authentication error, redirect to login
-      if (response.status === 401) {
-        toast.error('Session expired. Please login again.');
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userId');
-        localStorage.removeItem('userName');
-        navigate('/admin/login');
-      }
+      setProfiles([]);
+      setStatistics({
+        total: 0,
+        approved: 0,
+        pending: 0,
+        rejected: 0
+      });
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching profiles:', error);
-    toast.error('Failed to load KKID profiles. Please check your connection.');
-    
-    // Fallback to empty data
-    setProfiles([]);
-    setStatistics({
-      total: 0,
-      approved: 0,
-      pending: 0,
-      rejected: 0
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // Load profiles on component mount and when filters change
   useEffect(() => {
@@ -157,6 +197,11 @@ const fetchProfiles = async () => {
     setShowViewModal(true);
   };
 
+  const handleViewID = (profile) => {
+    setSelectedIDProfile(profile);
+    setShowIDModal(true);
+  };
+
   const handleAddProfile = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -179,9 +224,8 @@ const fetchProfiles = async () => {
         toast.success("KKID profile added successfully!");
         setShowForm(false);
         resetForm();
-        fetchProfiles(); // Refresh the list
+        fetchProfiles();
       } else {
-        // Handle validation errors
         if (data.errors) {
           Object.entries(data.errors).forEach(([field, messages]) => {
             toast.error(`${field}: ${messages[0]}`);
@@ -247,9 +291,8 @@ const fetchProfiles = async () => {
         setShowForm(false);
         setEditingProfile(null);
         resetForm();
-        fetchProfiles(); // Refresh the list
+        fetchProfiles();
       } else {
-        // Handle validation errors
         if (data.errors) {
           Object.entries(data.errors).forEach(([field, messages]) => {
             toast.error(`${field}: ${messages[0]}`);
@@ -285,7 +328,7 @@ const fetchProfiles = async () => {
       
       if (response.ok && data.success) {
         toast.success("KKID profile deleted successfully!");
-        fetchProfiles(); // Refresh the list
+        fetchProfiles();
       } else {
         toast.error(data.message || 'Failed to delete profile');
       }
@@ -323,9 +366,9 @@ const fetchProfiles = async () => {
       
       if (response.ok && data.success) {
         toast.success(`Profile status updated to ${newStatus}`);
-        fetchProfiles(); // Refresh the list
+        fetchProfiles();
         if (selectedProfile) {
-          setSelectedProfile(data.data); // Update selected profile in modal
+          setSelectedProfile(data.data);
         }
       } else {
         toast.error(data.message || 'Failed to update status');
@@ -336,7 +379,290 @@ const fetchProfiles = async () => {
     }
   };
 
-  // Update the form fields with proper controlled values
+  // ID Card Functions
+const handlePrintID = async () => {
+    setPrinting(true);
+    try {
+      const idCard = document.getElementById('id-card-template');
+      const canvas = await html2canvas(idCard, {
+        scale: 3,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        imageTimeout: 0,
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const printWindow = window.open('', '_blank');
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>KKID Card - ${selectedIDProfile.full_name}</title>
+            <style>
+              body { 
+                margin: 0; 
+                display: flex; 
+                justify-content: center; 
+                align-items: center; 
+                min-height: 100vh;
+                background: white;
+              }
+              img { 
+                max-width: 100%; 
+                height: auto;
+                image-rendering: crisp-edges;
+                width: 3.375in;
+                height: 2.125in;
+              }
+              @media print {
+                @page { 
+                  margin: 0; 
+                  size: 3.375in 2.125in;
+                }
+                body { 
+                  margin: 0;
+                  min-height: 0;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <img src="${imgData}" alt="KKID Card" />
+            <script>
+              window.onload = () => {
+                setTimeout(() => {
+                  window.print();
+                  setTimeout(() => window.close(), 500);
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Error printing ID:', error);
+      toast.error('Failed to print ID card');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    setPrinting(true);
+    try {
+      const idCard = document.getElementById('id-card-template');
+      const canvas = await html2canvas(idCard, {
+        scale: 3,
+        backgroundColor: '#ffffff',
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [86, 54]
+      });
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, 86, 54);
+      pdf.save(`KKID-${selectedIDProfile.kkid_number}.pdf`);
+      toast.success('ID card downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading ID:', error);
+      toast.error('Failed to download ID card');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const handleDownloadImage = async () => {
+    setPrinting(true);
+    try {
+      const idCard = document.getElementById('id-card-template');
+      const canvas = await html2canvas(idCard, {
+        scale: 3,
+        backgroundColor: '#ffffff',
+        useCORS: true
+      });
+      
+      const link = document.createElement('a');
+      link.download = `KKID-${selectedIDProfile.kkid_number}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      toast.success('ID card image downloaded!');
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      toast.error('Failed to download image');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // ID Card Layout Component
+  const IDCardLayout = ({ profile }) => (
+    <div className="bg-white p-8 flex flex-col items-center">
+      <div 
+        id="id-card-template"
+        className="w-[345px] h-[217px] bg-gradient-to-br from-blue-50 to-white border-4 border-blue-600 rounded-2xl shadow-2xl relative overflow-hidden"
+      >
+        {/* ID Card Design */}
+        <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
+        <div className="absolute bottom-0 left-0 w-full h-2 bg-blue-600"></div>
+        
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-4 right-4 text-6xl font-bold text-blue-400">KKID</div>
+          <div className="absolute bottom-4 left-4 text-4xl font-bold text-blue-300 rotate-12">YOUTH</div>
+        </div>
+        
+        <div className="p-4 h-full flex">
+          {/* Left Section - Logo and Main Info */}
+          <div className="w-1/3 pr-3 border-r border-blue-200">
+            <div className="mb-3">
+              <div className="text-center">
+                <div className="inline-block p-2 bg-blue-600 rounded-lg">
+                  <User className="h-8 w-8 text-white" />
+                </div>
+              </div>
+              <div className="mt-2 text-center">
+                <div className="text-xs text-gray-500">KKID No.</div>
+                <div className="font-bold text-sm text-blue-700">{profile.kkid_number}</div>
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <div className="relative w-24 h-24 mx-auto border-2 border-blue-500 rounded-lg bg-gray-100 overflow-hidden">
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-gray-100">
+                  <Camera className="h-8 w-8 text-gray-400" />
+                </div>
+                <div className="absolute bottom-0 w-full bg-blue-600 text-white text-xs py-1 text-center">
+                  PHOTO
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-2 text-center">
+              <div className="text-xs text-gray-500">Valid Until</div>
+              <div className="font-bold text-xs text-red-600">
+                {new Date(profile.validity_date).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: '2-digit',
+                  year: 'numeric' 
+                })}
+              </div>
+            </div>
+          </div>
+          
+          {/* Right Section - Personal Details */}
+          <div className="w-2/3 pl-3">
+            <div className="mb-2">
+              <h2 className="font-bold text-lg truncate">{profile.full_name}</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge className="bg-green-100 text-green-800 text-xs">
+                  {profile.status === 'approved' ? 'ACTIVE' : profile.status.toUpperCase()}
+                </Badge>
+                <span className="text-xs text-gray-600">{profile.gender}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-1.5 text-xs">
+              <div className="grid grid-cols-2 gap-1">
+                <div className="text-gray-500">Birthday:</div>
+                <div className="font-medium">
+                  {new Date(profile.birthday).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: '2-digit',
+                    year: 'numeric' 
+                  })}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-1">
+                <div className="text-gray-500">Civil Status:</div>
+                <div className="font-medium">{profile.civil_status}</div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-1">
+                <div className="text-gray-500">Contact:</div>
+                <div className="font-medium">{profile.contact_number}</div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-1">
+                <div className="text-gray-500">Address:</div>
+                <div className="font-medium truncate">{profile.address.split(',')[0]}</div>
+              </div>
+              
+              {profile.youth_organization && (
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="text-gray-500">Organization:</div>
+                  <div className="font-medium truncate">{profile.youth_organization}</div>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-1">
+                <div className="text-gray-500">Voter:</div>
+                <div className="font-medium">{profile.is_voter ? 'YES' : 'NO'}</div>
+              </div>
+            </div>
+            
+            {/* Signature Section */}
+            <div className="mt-3 pt-2 border-t border-dashed border-gray-300">
+              <div className="text-center">
+                <div className="text-xs text-gray-500">Authorized Signature</div>
+                <div className="h-6 border-b border-gray-400 w-3/4 mx-auto"></div>
+                <div className="text-[10px] text-gray-500 mt-1">Katipunan ng Kabataan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Watermark */}
+        <div className="absolute bottom-1 right-2 text-[8px] text-gray-400">
+          ID: {profile.id.toString().padStart(6, '0')}
+        </div>
+      </div>
+      
+      {/* Print & Download Buttons */}
+      <div className="mt-6 flex gap-3">
+        <Button
+          onClick={handlePrintID}
+          disabled={printing}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          {printing ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Printer className="h-4 w-4 mr-2" />
+          )}
+          Print ID Card
+        </Button>
+        
+        <Button
+          onClick={handleDownloadPDF}
+          disabled={printing}
+          variant="outline"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Download PDF
+        </Button>
+        
+        <Button
+          onClick={handleDownloadImage}
+          disabled={printing}
+          variant="outline"
+        >
+          <Camera className="h-4 w-4 mr-2" />
+          Save as Image
+        </Button>
+      </div>
+    </div>
+  );
+
+  // Form rendering function
   const renderForm = () => (
     <form onSubmit={editingProfile ? handleUpdateProfile : handleAddProfile} className="p-6 space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -641,6 +967,9 @@ const fetchProfiles = async () => {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
+      {/* Add the print styles as a style tag */}
+      <style>{printStyles}</style>
+      
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -812,6 +1141,14 @@ const fetchProfiles = async () => {
                     >
                       <Eye className="mr-2 h-4 w-4" />
                       View Details
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => handleViewID(profile)}
+                    >
+                      <Printer className="mr-2 h-4 w-4" />
+                      View ID
                     </Button>
                   </div>
                 </CardContent>
@@ -999,15 +1336,224 @@ const fetchProfiles = async () => {
                   <Edit className="mr-2 h-4 w-4 inline" />
                   Edit Profile
                 </button>
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    handleViewID(selectedProfile);
+                  }}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
+                >
+                  <Printer className="mr-2 h-4 w-4 inline" />
+                  View ID Card
+                </button>
                 <select 
                   value={selectedProfile.status}
                   onChange={(e) => handleStatusChange(selectedProfile.id, e.target.value)}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors border-none cursor-pointer text-center"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors border-none cursor-pointer text-center"
                 >
                   <option value="pending">Mark as Pending</option>
                   <option value="approved">Approve</option>
                   <option value="rejected">Reject</option>
                 </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+{/* ID Card Modal */}
+{showIDModal && selectedIDProfile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-2xl font-bold text-gray-900">
+                KKID Card - {selectedIDProfile.full_name}
+              </h2>
+              <button
+                onClick={() => setShowIDModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+                disabled={printing}
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            {/* ID Card Display Section */}
+            <div className="bg-white p-8 flex flex-col items-center">
+              <div 
+                id="id-card-template"
+                className="w-[345px] h-[217px] bg-gradient-to-br from-blue-50 to-white border-4 border-blue-600 rounded-2xl shadow-2xl relative overflow-hidden"
+                style={{
+                  WebkitPrintColorAdjust: 'exact',
+                  printColorAdjust: 'exact'
+                }}
+              >
+          {/* ID Card Design */}
+          <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
+          <div className="absolute bottom-0 left-0 w-full h-2 bg-blue-600"></div>
+          
+          {/* Background Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute top-4 right-4 text-6xl font-bold text-blue-400">KKID</div>
+            <div className="absolute bottom-4 left-4 text-4xl font-bold text-blue-300 rotate-12">YOUTH</div>
+          </div>
+          
+          <div className="p-4 h-full flex">
+            {/* Left Section - Logo and Main Info */}
+            <div className="w-1/3 pr-3 border-r border-blue-200">
+              <div className="mb-3">
+                <div className="text-center">
+                  <div className="inline-block p-2 bg-blue-600 rounded-lg">
+                    <User className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+                <div className="mt-2 text-center">
+                  <div className="text-xs text-gray-500">KKID No.</div>
+                  <div className="font-bold text-sm text-blue-700">{selectedIDProfile.kkid_number}</div>
+                </div>
+              </div>
+              
+              <div className="mt-4">
+                <div className="relative w-24 h-24 mx-auto border-2 border-blue-500 rounded-lg bg-gray-100 overflow-hidden">
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-gray-100">
+                    <Camera className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <div className="absolute bottom-0 w-full bg-blue-600 text-white text-xs py-1 text-center">
+                    PHOTO
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-2 text-center">
+                <div className="text-xs text-gray-500">Valid Until</div>
+                <div className="font-bold text-xs text-red-600">
+                  {new Date(selectedIDProfile.validity_date).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: '2-digit',
+                    year: 'numeric' 
+                  })}
+                </div>
+              </div>
+            </div>
+            
+            {/* Right Section - Personal Details */}
+            <div className="w-2/3 pl-3">
+              <div className="mb-2">
+                <h2 className="font-bold text-lg truncate">{selectedIDProfile.full_name}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge className="bg-green-100 text-green-800 text-xs">
+                    {selectedIDProfile.status === 'approved' ? 'ACTIVE' : selectedIDProfile.status.toUpperCase()}
+                  </Badge>
+                  <span className="text-xs text-gray-600">{selectedIDProfile.gender}</span>
+                </div>
+              </div>
+              
+              <div className="space-y-1.5 text-xs">
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="text-gray-500">Birthday:</div>
+                  <div className="font-medium">
+                    {new Date(selectedIDProfile.birthday).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: '2-digit',
+                      year: 'numeric' 
+                    })}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="text-gray-500">Civil Status:</div>
+                  <div className="font-medium">{selectedIDProfile.civil_status}</div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="text-gray-500">Contact:</div>
+                  <div className="font-medium">{selectedIDProfile.contact_number}</div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="text-gray-500">Address:</div>
+                  <div className="font-medium truncate">{selectedIDProfile.address?.split(',')[0] || ''}</div>
+                </div>
+                
+                {selectedIDProfile.youth_organization && (
+                  <div className="grid grid-cols-2 gap-1">
+                    <div className="text-gray-500">Organization:</div>
+                    <div className="font-medium truncate">{selectedIDProfile.youth_organization}</div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="text-gray-500">Voter:</div>
+                  <div className="font-medium">{selectedIDProfile.is_voter ? 'YES' : 'NO'}</div>
+                </div>
+              </div>
+              
+              {/* Signature Section */}
+              <div className="mt-3 pt-2 border-t border-dashed border-gray-300">
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Authorized Signature</div>
+                  <div className="h-6 border-b border-gray-400 w-3/4 mx-auto"></div>
+                  <div className="text-[10px] text-gray-500 mt-1">Katipunan ng Kabataan</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Watermark */}
+          <div className="absolute bottom-1 right-2 text-[8px] text-gray-400">
+            ID: {selectedIDProfile.id?.toString().padStart(6, '0') || '000000'}
+          </div>
+        </div>
+        
+        {/* Print & Download Buttons */}
+        <div className="mt-6 flex gap-3">
+                <Button
+                  onClick={handlePrintID}
+                  disabled={printing}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {printing ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Printer className="h-4 w-4 mr-2" />
+                  )}
+                  Print ID Card
+                </Button>
+                
+                <Button
+                  onClick={handleDownloadPDF}
+                  disabled={printing}
+                  variant="outline"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
+                </Button>
+                
+                <Button
+                  onClick={handleDownloadImage}
+                  disabled={printing}
+                  variant="outline"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Save as Image
+                </Button>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t bg-gray-50">
+              <div className="text-sm text-gray-600">
+                <p className="mb-2 font-medium">Printing Instructions:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Use standard ID card paper (PVC recommended for durability)</li>
+                  <li>Print at 100% scale for correct dimensions</li>
+                  <li>Standard ID size: 3.375" × 2.125" (85.6 × 54 mm)</li>
+                  <li>For best results, use a color printer with high resolution</li>
+                  <li>Laminate the printed ID for water resistance</li>
+                </ul>
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-blue-800 font-medium">Note:</p>
+                  <p className="text-blue-700 text-sm">This ID is only valid when signed and accompanied by an official stamp.</p>
+                </div>
               </div>
             </div>
           </div>

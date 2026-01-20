@@ -1,6 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Comment out or remove this line if print.css doesn't exist */
+/* @import './print.css'; */
 
 /* Design tokens (light/dark) */
 @layer base {
@@ -32,15 +35,14 @@
     --radius: 0.5rem;
 
     /* Barangay theme colors */
-  --government-blue: 220 80% 45%;
-  --government-red: 0 72% 50%;
-  --government-gold: 40 80% 50%;
-  --government-foreground: 0 0% 100%;
-  --success: 145 63% 42%;
-  --success-foreground: 0 0% 98%;
-  --warning: 35 100% 50%;
-  --warning-foreground: 0 0% 10%;
-
+    --government-blue: 220 80% 45%;
+    --government-red: 0 72% 50%;
+    --government-gold: 40 80% 50%;
+    --government-foreground: 0 0% 100%;
+    --success: 145 63% 42%;
+    --success-foreground: 0 0% 98%;
+    --warning: 35 100% 50%;
+    --warning-foreground: 0 0% 10%;
   }
 
   .dark {
@@ -73,9 +75,61 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+/* =========================================== */
+/* PRINT STYLES - ADDED DIRECTLY HERE */
+/* =========================================== */
+@media print {
+  /* Hide everything except the ID card */
+  body * {
+    visibility: hidden;
+  }
+  
+  #id-card-template, #id-card-template * {
+    visibility: visible;
+  }
+  
+  /* Position and size the ID card for printing */
+  #id-card-template {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 3.375in !important;
+    height: 2.125in !important;
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Ensure background colors print */
+  * {
+    -webkit-print-color-adjust: exact;
+  }
+  
+  /* Page settings */
+  @page {
+    margin: 0;
+    size: 3.375in 2.125in;
+  }
+}
+
+/* Optional: Tailwind print utility classes */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
   }
 }
