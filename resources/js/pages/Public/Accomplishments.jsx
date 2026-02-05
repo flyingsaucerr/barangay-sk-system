@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, Loader2, Megaphone } from "lucide-react";
+import { Calendar, MapPin, Award, Users, Loader2, X} from "lucide-react";
+import { Link } from "react-router-dom";
 
 const PublicAccomplishments = () => {
   const [accomplishments, setAccomplishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showReadMore, setShowReadMore] = useState(false);
+  const [selectedAccomplishment, setSelectedAccomplishment] = useState(null);
+
 
   // Hardcoded announcements for public view
   const announcements = [
@@ -194,50 +198,24 @@ const PublicAccomplishments = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50">
-      <div className="container mx-auto px-4 py-12">
+      
         {/* Header Section */}
-        <div className="text-center mb-16">
-          <div className="inline-block bg-primary/10 text-primary px-6 py-2 rounded-full text-sm font-medium mb-4 border border-primary/20">
-            Community Achievements
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Barangay Accomplishments
+        <div className="bg-primary text-white py-12">
+          <div className="container mx-auto px-4 text-center">
+            <div className="flex justify-center mb-4">
+              <Award className="h-12 w-12 text-white" />
+            </div>
+          <h1 className="text-4xl font-bold mb-2">
+            SK Accomplishments
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl opacity-90 max-w-2xl mx-auto">
             Celebrating the successful projects and initiatives that have enhanced 
             our community's infrastructure, services, and quality of life for all residents.
           </p>
-        </div>
-
-        {/* Recent Announcements Section */}
-        {recentAnnouncements.length > 0 && (
-          <div className="mb-16">
-            <div className="flex items-center gap-3 mb-6">
-              <Megaphone className="h-6 w-6 text-blue-600" />
-              <h2 className="text-2xl font-bold text-gray-900">Recent Announcements</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {recentAnnouncements.map((announcement) => (
-                <Card key={announcement.id} className="hover:shadow-lg transition-shadow border-0 shadow-md">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <Badge variant="outline" className={getAnnouncementBadge(announcement.type)}>
-                        {announcement.type.charAt(0).toUpperCase() + announcement.type.slice(1)}
-                      </Badge>
-                      <span className="text-sm text-gray-500">
-                        {formatDate(announcement.date)}
-                      </span>
-                    </div>
-                    <CardTitle className="text-lg text-gray-900">{announcement.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600 leading-relaxed">{announcement.content}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
           </div>
-        )}
+        </div>
+               
+        <div className="container mx-auto px-4 py-12">
 
         {/* Impact Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
@@ -372,12 +350,96 @@ const PublicAccomplishments = () => {
                         </div>
                       )}
                     </div>
+                    <button
+                      onClick={() => {
+                        setSelectedAccomplishment(accomplishment);
+                        setShowReadMore(true);
+                      }}
+                      className="text-primary font-semibold text-sm hover:underline"
+                    >
+                      Read more
+                    </button>
                   </CardContent>
                 </Card>
               ))}
             </div>
           )}
         </div>
+
+        {/* Accomplishment Read More Modal */}
+        {showReadMore && selectedAccomplishment && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              
+              {/* Header */}
+              <div className="flex justify-between items-center p-6 border-b">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {selectedAccomplishment.title}
+                </h2>
+                <button
+                  onClick={() => setShowReadMore(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6">
+
+                {/* Image */}
+                <div className="w-full h-64 bg-gray-100 rounded-lg overflow-hidden">
+                  {selectedAccomplishment.photo ? (
+                    <img
+                      src={`/storage/${selectedAccomplishment.photo}`}
+                      alt={selectedAccomplishment.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    getPlaceholderImage(selectedAccomplishment.title)
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>{formatDate(selectedAccomplishment.date_completed)}</span>
+                  </div>
+
+                  {selectedAccomplishment.location && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      <span>{selectedAccomplishment.location}</span>
+                    </div>
+                  )}
+
+                  <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+                    Accomplishment
+                  </Badge>
+                </div>
+
+                {/* Full Description */}
+                <div className="prose max-w-none">
+                  <p className="whitespace-pre-line text-gray-700 leading-relaxed text-lg">
+                    {selectedAccomplishment.description}
+                  </p>
+                </div>
+
+                {/* Action */}
+                <div className="flex gap-4 pt-6 border-t">
+                  <button
+                    onClick={() => setShowReadMore(false)}
+                    className="flex-1 bg-primary hover:bg-primary/90 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Community Engagement Section */}
         <Card className="bg-gradient-to-br from-blue-600 to-purple-700 text-white shadow-2xl border-0">
@@ -392,10 +454,10 @@ const PublicAccomplishments = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                 <button className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors shadow-lg">
-                  Share Your Feedback
+                  <Link to="/Requests">Provide Feedback</Link>
                 </button>
                 <button className="border border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white/10 transition-colors">
-                  Join Our Programs
+                  <Link to="/Projects">Join Our Programs</Link>
                 </button>
               </div>
               <p className="text-sm text-blue-200 mt-6">
@@ -404,6 +466,7 @@ const PublicAccomplishments = () => {
             </div>
           </CardContent>
         </Card>
+        
 
         {/* Footer Note */}
         <div className="text-center mt-12">

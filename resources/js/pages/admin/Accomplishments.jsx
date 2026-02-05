@@ -22,23 +22,6 @@ const AdminAccomplishments = () => {
     is_published: true
   });
 
-  // Hardcoded announcements for admin view
-  const announcements = [
-    {
-      id: 1,
-      title: "Community Clean-up Drive Success",
-      content: "Our recent community clean-up drive collected over 500kg of waste. Thank you to all volunteers!",
-      date: "2024-01-15",
-      type: "success"
-    },
-    {
-      id: 2,
-      title: "New Basketball Court Installation",
-      content: "The new basketball court in Zone 5 will be completed by next month. Stay tuned for the opening ceremony!",
-      date: "2024-01-10",
-      type: "info"
-    }
-  ];
 
   // Get auth token from localStorage
   const getAuthToken = () => {
@@ -248,51 +231,56 @@ const AdminAccomplishments = () => {
 
   const handlePublishToggle = async (id, currentStatus) => {
     try {
-      const authToken = getAuthToken();
-      const csrfToken = getCsrfToken();
-      
+      const authToken = localStorage.getItem("authToken");
+      const csrfToken = document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute("content");
+
       const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
       };
 
       if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
+        headers["Authorization"] = `Bearer ${authToken}`;
       }
 
       if (csrfToken) {
-        headers['X-CSRF-TOKEN'] = csrfToken;
+        headers["X-CSRF-TOKEN"] = csrfToken;
       }
 
       const response = await fetch(`/api/accomplishments/${id}`, {
-        method: 'POST',
-        headers: headers,
+        method: "POST",
+        headers,
         body: JSON.stringify({
           is_published: !currentStatus,
-          _method: 'PUT'
-        })
+          _method: "PUT",
+        }),
       });
 
       if (!response.ok) {
         if (response.status === 401) {
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('userRole');
-          window.location.href = '/admin/login';
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("userRole");
+          window.location.href = "/admin/login";
           return;
         }
         throw new Error(`Server error: ${response.status}`);
       }
 
       const updatedAccomplishment = await response.json();
-      setAccomplishments(prev => 
-        prev.map(item => item.id === id ? updatedAccomplishment : item)
+
+      // ✅ Update UI instantly
+      setAccomplishments((prev) =>
+        prev.map((item) =>
+          item.id === id ? updatedAccomplishment : item
+        )
       );
-      
-      alert(`Accomplishment ${!currentStatus ? 'published' : 'unpublished'} successfully!`);
-    } catch (err) {
-      console.error('Error updating publication status:', err);
-      alert(`Error: ${err.message}`);
+
+    } catch (error) {
+      console.error("Error toggling publish status:", error);
+      alert("Failed to update publish status. Please try again.");
     }
   };
 
@@ -393,9 +381,6 @@ const AdminAccomplishments = () => {
       <div className="container mx-auto px-4 py-12">
         {/* Header Section */}
         <div className="text-center mb-16">
-          <div className="inline-block bg-primary/10 text-primary px-6 py-2 rounded-full text-sm font-medium mb-4 border border-primary/20">
-            Manage Accomplishments
-          </div>
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
             Admin Accomplishments
           </h1>
@@ -414,34 +399,6 @@ const AdminAccomplishments = () => {
               <Plus className="h-5 w-5" />
               Add New Accomplishment
             </Button>
-          </div>
-        </div>
-
-        {/* Recent Announcements Section */}
-        <div className="mb-16">
-          <div className="flex items-center gap-3 mb-6">
-            <Megaphone className="h-6 w-6 text-blue-600" />
-            <h2 className="text-2xl font-bold text-gray-900">Recent Announcements</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {announcements.map((announcement) => (
-              <Card key={announcement.id} className="hover:shadow-lg transition-shadow border-0 shadow-md">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <Badge variant="outline" className={getAnnouncementBadge(announcement.type)}>
-                      {announcement.type.charAt(0).toUpperCase() + announcement.type.slice(1)}
-                    </Badge>
-                    <span className="text-sm text-gray-500">
-                      {formatDate(announcement.date)}
-                    </span>
-                  </div>
-                  <CardTitle className="text-lg text-gray-900">{announcement.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 leading-relaxed">{announcement.content}</p>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         </div>
 
@@ -724,15 +681,16 @@ const AdminAccomplishments = () => {
                     {/* Admin Actions */}
                     <div className="flex justify-between items-center pt-3 border-t border-gray-100">
                       <Button
-                        onClick={() => handlePublishToggle(accomplishment.id, accomplishment.is_published !== false)}
+                        onClick={() => handlePublishToggle(accomplishment.id, accomplishment.is_published)}
                         className={`px-3 py-1 rounded text-sm font-medium ${
-                          accomplishment.is_published !== false
+                          accomplishment.is_published
                             ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
                             : 'bg-green-100 text-green-700 hover:bg-green-200'
                         } transition-colors`}
                       >
-                        {accomplishment.is_published !== false ? 'Unpublish' : 'Publish'}
+                        {accomplishment.is_published ? 'Unpublish' : 'Publish'}
                       </Button>
+
                       
                       <div className="flex gap-2">
                         <Button

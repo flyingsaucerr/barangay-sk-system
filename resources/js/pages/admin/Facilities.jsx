@@ -57,8 +57,6 @@ const Facilities = () => {
         return <Badge className="bg-green-100 text-green-800 border-green-200">Available</Badge>;
       case 'maintenance':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Under Maintenance</Badge>;
-      case 'booked':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Booked</Badge>;
       case 'reserved':
         return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Reserved</Badge>;
       default:
@@ -72,8 +70,6 @@ const Facilities = () => {
         return <CalendarCheck className="h-4 w-4 text-green-600" />;
       case 'maintenance':
         return <Wrench className="h-4 w-4 text-yellow-600" />;
-      case 'booked':
-        return <CalendarX className="h-4 w-4 text-blue-600" />;
       case 'reserved':
         return <CalendarX className="h-4 w-4 text-purple-600" />;
       default:
@@ -273,7 +269,6 @@ const Facilities = () => {
 
   const availableCount = facilities.filter(f => f.status === 'available').length;
   const maintenanceCount = facilities.filter(f => f.status === 'maintenance').length;
-  const bookedCount = facilities.filter(f => f.status === 'booked').length;
   const reservedCount = facilities.filter(f => f.status === 'reserved').length;
 
   return (
@@ -305,32 +300,29 @@ const Facilities = () => {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-green-600 mb-1">{availableCount}</div>
-              <div className="text-sm text-muted-foreground">Available</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+          <Card className="h-full">
+            <CardContent className="p-8 flex flex-col justify-center items-center text-center">
+              <div className="text-4xl font-bold text-green-600 mb-2">{availableCount}</div>
+              <div className="text-lg text-muted-foreground">Available</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-yellow-600 mb-1">{maintenanceCount}</div>
-              <div className="text-sm text-muted-foreground">Maintenance</div>
+
+          <Card className="h-full">
+            <CardContent className="p-8 flex flex-col justify-center items-center text-center">
+              <div className="text-4xl font-bold text-yellow-600 mb-2">{maintenanceCount}</div>
+              <div className="text-lg text-muted-foreground">Maintenance</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600 mb-1">{bookedCount}</div>
-              <div className="text-sm text-muted-foreground">Booked</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-purple-600 mb-1">{reservedCount}</div>
-              <div className="text-sm text-muted-foreground">Reserved</div>
+
+          <Card className="h-full">
+            <CardContent className="p-8 flex flex-col justify-center items-center text-center">
+              <div className="text-4xl font-bold text-purple-600 mb-2">{reservedCount}</div>
+              <div className="text-lg text-muted-foreground">Reserved</div>
             </CardContent>
           </Card>
         </div>
+
 
         {/* Facilities Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -422,7 +414,6 @@ const Facilities = () => {
                       >
                         <option value="available">Available</option>
                         <option value="maintenance">Maintenance</option>
-                        <option value="booked">Booked</option>
                         <option value="reserved">Reserved</option>
                       </select>
                       <Button variant="outline" size="sm" className="text-xs">
@@ -532,7 +523,6 @@ const Facilities = () => {
                     >
                       <option value="available">Available</option>
                       <option value="maintenance">Under Maintenance</option>
-                      <option value="booked">Booked</option>
                       <option value="reserved">Reserved</option>
                     </select>
                   </div>

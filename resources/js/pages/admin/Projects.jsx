@@ -14,7 +14,7 @@ const AdminProjects = () => {
   const [editingProject, setEditingProject] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [viewingProject, setViewingProject] = useState(null);
   const userRole = localStorage.getItem('userRole') || 'resident';
   const authToken = localStorage.getItem('authToken');
 
@@ -35,13 +35,37 @@ const AdminProjects = () => {
   const fetchProjects = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/projects', {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
-      
+
       if (response.ok) {
-        const data = await response.json();
+        let data = await response.json();
+
+        const now = new Date();
+        for (let project of data) {
+          // Check if project has passed end date and is not completed
+          if (project.status !== 'completed' && new Date(project.end_date) < now) {
+            // Update status and progress locally
+            project.status = 'completed';
+            project.progress = 100;
+
+            // Update in backend
+            try {
+              await fetch(`http://localhost:8000/api/projects/${project.id}`, {
+                method: 'PUT',
+                headers: {
+                  'Authorization': `Bearer ${authToken}`,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                body: JSON.stringify({ ...project, status: 'completed', progress: 100 }),
+              });
+            } catch (err) {
+              console.error(`Failed to auto-complete project ${project.id}:`, err);
+            }
+          }
+        }
+
         setProjects(data);
       } else {
         console.error('Failed to fetch projects');
@@ -52,6 +76,7 @@ const AdminProjects = () => {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     fetchProjects();
@@ -162,21 +187,22 @@ const AdminProjects = () => {
   };
 
   const handleEditProject = (project) => {
-    setEditingProject(project);
-    setFormData({
-      title: project.title,
-      description: project.description,
-      full_description: project.full_description || '',
-      start_date: project.start_date,
-      end_date: project.end_date,
-      status: project.status,
-      location: project.location,
-      beneficiaries: project.beneficiaries.toString(),
-      progress: project.progress.toString(),
-      category: project.category
-    });
-    setShowProjectForm(true);
-  };
+  setEditingProject(project);
+  setFormData({
+    title: project.title,
+    description: project.description,
+    full_description: project.full_description || '',
+    start_date: project.start_date,
+    end_date: project.end_date,    
+    status: project.status,
+    location: project.location,
+    beneficiaries: project.beneficiaries.toString(),
+    progress: project.progress.toString(),
+    category: project.category
+  });
+  setShowProjectForm(true);
+};
+
 
   const handleUpdateProject = async (e) => {
     e.preventDefault();
@@ -525,7 +551,12 @@ const AdminProjects = () => {
                     {getStatusText(project.status)}
                   </Badge>
                 )}
-                <Button variant="outline" size="sm" className="text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setViewingProject(project)}
+                >
                   View Details
                 </Button>
               </div>
@@ -543,6 +574,74 @@ const AdminProjects = () => {
               ? "Try adjusting your search or filters"
               : "No projects have been added yet"}
           </p>
+        </div>
+      )}
+
+      {/* View Project Details Modal */}
+      {viewingProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-2xl font-bold text-gray-900">Project Details</h2>
+              <button
+                onClick={() => setViewingProject(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="font-semibold text-gray-800">Title</h3>
+                <p className="text-gray-700">{viewingProject.title}</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-800">Full Description</h3>
+                <p className="text-gray-700">{viewingProject.full_description || '-'}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                <div>
+                  <strong>Start Date:</strong> {new Date(viewingProject.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+                <div>
+                  <strong>End Date:</strong> {new Date(viewingProject.end_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+                <div>
+                  <strong>Location:</strong> {viewingProject.location}
+                </div>
+                <div>
+                  <strong>Beneficiaries:</strong> {viewingProject.beneficiaries}
+                </div>
+                <div>
+                  <strong>Category:</strong> {viewingProject.category}
+                </div>
+                <div>
+                  <strong>Status:</strong> {getStatusText(viewingProject.status)}
+                </div>
+                <div className="col-span-2">
+                  <strong>Progress:</strong> {viewingProject.progress}%
+                  <div className="w-full bg-gray-200 rounded-full h-3 mt-1">
+                    <div
+                      className={`h-3 rounded-full ${getProgressColor(viewingProject.progress)}`}
+                      style={{ width: `${viewingProject.progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <button
+                  onClick={() => setViewingProject(null)}
+                  className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

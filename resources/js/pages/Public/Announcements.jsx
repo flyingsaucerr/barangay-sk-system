@@ -147,9 +147,6 @@ const Announcements = () => {
                 <div className="w-full">
                   {getPlaceholderImage(announcement)}
                 </div>
-                <Badge className={`absolute top-3 right-3 border ${getPriorityColor(announcement.priority)}`}>
-                  {(announcement.priority || 'medium').toUpperCase()}
-                </Badge>
               </div>
               
               <CardHeader className="pb-3">
@@ -160,9 +157,6 @@ const Announcements = () => {
                 <CardDescription className="flex items-center space-x-2 text-sm">
                   <Calendar className="h-4 w-4" />
                   <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
-                  <span>•</span>
-                  <User className="h-4 w-4" />
-                  <span>{announcement.author || (announcement.user && announcement.user.name) || 'Barangay Official'}</span>
                 </CardDescription>
               </CardHeader>
               

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileText, Calendar, Eye, Building, Search, Filter, X, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const PublicDisclosure = () => {
   const [disclosures, setDisclosures] = useState([]);
@@ -18,14 +19,11 @@ const PublicDisclosure = () => {
 
   const categories = [
     "All",
-    "Governance",
-    "Operations", 
-    "Youth Development",
-    "Projects",
-    "Announcements",
-    "Financial",
-    "Health & Safety",
-    "Environment"
+    "Annual Barangay Youth Investment Program",
+    "CBYDP", 
+    "Annual Budget Resolution",
+    "Register Cash in Bank and other Financial Transactions",
+    "Monthly Itemized List of Purchased Request",
   ];
 
   // Fetch disclosures from API - public endpoint
@@ -57,7 +55,7 @@ const PublicDisclosure = () => {
           title: "Annual Barangay Development Plan 2024",
           description: "Comprehensive plan outlining barangay programs, projects, and activities for the fiscal year 2024.",
           date: "January 2024",
-          category: "Governance",
+          category: "CBYDP",
           full_details: `# Annual Barangay Development Plan 2024
 
 ## Executive Summary
@@ -90,7 +88,7 @@ This plan has been developed through extensive community consultation and repres
           title: "Monthly Activity Report - January 2024",
           description: "Detailed reports of barangay activities, programs, and accomplishments for January 2024.",
           date: "February 1, 2024",
-          category: "Operations",
+          category: "Monthly Itemized List of Purchased Request",
           full_details: `# Monthly Activity Report - January 2024
 
 ## Activities Completed
@@ -129,7 +127,7 @@ This plan has been developed through extensive community consultation and repres
           title: "Youth Development Programs 2024-2026",
           description: "Comprehensive three-year plan for youth education, leadership, and skills development programs.",
           date: "2024–2026",
-          category: "Youth Development",
+          category: "Annual Barangay Youth Investment Program",
           full_details: `# Youth Development Programs 2024-2026
 
 ## Vision
@@ -174,7 +172,7 @@ To empower the youth as active partners in community development and nation-buil
           title: "Financial Transparency Report Q1 2024",
           description: "Quarterly financial report showing income, expenses, and budget utilization for Q1 2024.",
           date: "April 2024",
-          category: "Financial",
+          category: "Annual Budget Resolution",
           full_details: `# Financial Transparency Report - Q1 2024
 
 ## Income Summary
@@ -219,7 +217,7 @@ All financial transactions have been reviewed and verified. Complete documentati
           title: "Community Health and Safety Initiatives",
           description: "Overview of health programs, emergency response, and safety measures implemented in the community.",
           date: "Ongoing",
-          category: "Health & Safety",
+          category: "Register Cash in Bank and other Financial Transactions",
           full_details: `# Community Health and Safety Initiatives
 
 ## Health Programs
@@ -260,54 +258,7 @@ All financial transactions have been reviewed and verified. Complete documentati
 - Mental Health Awareness Campaign
 - Senior Citizen Health Monitoring`
         },
-        {
-          id: 6,
-          title: "Environmental Sustainability Program",
-          description: "Comprehensive environmental protection, waste management, and greening initiatives for the barangay.",
-          date: "2024-2025",
-          category: "Environment",
-          full_details: `# Environmental Sustainability Program 2024-2025
-
-## Program Goals
-1. Reduce waste generation by 30%
-2. Increase green spaces by 25%
-3. Achieve 80% waste segregation compliance
-4. Establish community recycling center
-
-## Current Initiatives
-
-### Waste Management
-- **Segregation Program**: Color-coded bins distributed
-- **Composting**: 5 community composting sites
-- **Recycling**: Monthly collection drive
-- **Plastic Reduction**: Education and alternatives
-
-### Greening Projects
-- **Tree Planting**: 500 trees planted annually
-- **Community Garden**: 2 locations established
-- **Park Development**: 3 mini-parks completed
-- **Vertical Gardens**: Encouraged in households
-
-### Water Conservation
-- **Rainwater Harvesting**: 50 systems installed
-- **Water Monitoring**: Leak detection program
-- **Education**: Water conservation workshops
-
-## Achievements (2023)
-- Waste Reduction: 25% achieved
-- Recycling Rate: 45% of total waste
-- Tree Survival Rate: 85%
-- Community Participation: 60% of households
-
-## Future Projects
-- Solar Street Lights Installation
-- Community Recycling Center
-- Environmental Education Center
-- River Clean-up Program
-
-## Get Involved
-Join our weekly environmental activities every Saturday morning at the barangay hall. Together, we can build a cleaner, greener community!`
-        }
+        
       ];
       
       setDisclosures(sampleDisclosures);
@@ -589,11 +540,8 @@ Join our weekly environmental activities every Saturday morning at the barangay 
                 All documents are made available to ensure accountability and build trust with our residents.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors shadow-lg">
-                  Request Information
-                </Button>
                 <Button className="border border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white/10 transition-colors">
-                  Provide Feedback
+                  <Link to="/Requests">Provide Feedback</Link>
                 </Button>
               </div>
               <p className="text-sm text-blue-200 mt-6">

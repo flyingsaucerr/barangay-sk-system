@@ -311,15 +311,6 @@ const Facilities = () => {
                   </div>
                 </div>
 
-                {/* Booking Information */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-lg mb-2 text-blue-800">How to Book this Facility</h3>
-                  <p className="text-blue-700 text-sm">
-                    To reserve this facility for your event or activity, please visit the Barangay Hall during office hours 
-                    or contact the Barangay Office for assistance with scheduling and requirements.
-                  </p>
-                </div>
-
                 {/* Action Buttons */}
                 <div className="flex gap-4 pt-6 border-t">
                   <button
@@ -327,15 +318,6 @@ const Facilities = () => {
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
                   >
                     Close
-                  </button>
-                  <button
-                    onClick={() => {
-                      // This could link to a booking page or show contact info
-                      alert('Please visit the Barangay Hall or contact the office to book this facility.');
-                    }}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                  >
-                    Inquire About Booking
                   </button>
                 </div>
               </div>

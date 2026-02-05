@@ -27,14 +27,12 @@ const AdminDisclosure = () => {
   });
 
   const categories = [
-    "Governance",
-    "Operations", 
-    "Youth Development",
-    "Projects",
-    "Announcements",
-    "Financial",
-    "Health & Safety",
-    "Environment"
+    "All",
+    "Annual Barangay Youth Investment Program",
+    "CBYDP", 
+    "Annual Budget Resolution",
+    "Register Cash in Bank and other Financial Transactions",
+    "Monthly Itemized List of Purchased Request",
   ];
 
   // Get auth token from localStorage
@@ -301,52 +299,51 @@ const handleAddDisclosure = async (e) => {
     }
   };
 
-  const handlePublishToggle = async (id, currentStatus) => {
+  const handlePublishToggle = async (disclosure) => {
+    const newStatus = !(disclosure.is_published !== false); // toggle
     try {
+      setFormLoading(true);
+
       const authToken = getAuthToken();
       const csrfToken = getCsrfToken();
-      
+
       const headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
       };
 
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
 
-      if (csrfToken) {
-        headers['X-CSRF-TOKEN'] = csrfToken;
-      }
-
-      const response = await fetch(`/api/disclosures/${id}`, {
+      const response = await fetch(`/api/disclosures/${disclosure.id}`, {
         method: 'PUT',
-        headers: headers,
+        headers,
         body: JSON.stringify({
-          is_published: !currentStatus
-        })
+          ...disclosure,
+          is_published: newStatus
+        }),
       });
 
       if (!response.ok) {
         if (response.status === 401) {
           localStorage.removeItem('authToken');
-          localStorage.removeItem('userRole');
           window.location.href = '/admin/login';
-          return;
         }
         throw new Error(`Server error: ${response.status}`);
       }
 
       const updatedDisclosure = await response.json();
-      setDisclosures(prev => 
-        prev.map(d => d.id === id ? updatedDisclosure : d)
+      setDisclosures(prev =>
+        prev.map(d => d.id === disclosure.id ? updatedDisclosure : d)
       );
-      
-      alert(`Disclosure ${!currentStatus ? 'published' : 'unpublished'} successfully!`);
+
+      alert(`Disclosure ${newStatus ? 'published' : 'unpublished'} successfully!`);
     } catch (err) {
-      console.error('Error updating publication status:', err);
+      console.error('Publish toggle error:', err);
       alert(`Error: ${err.message}`);
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -405,10 +402,10 @@ const handleAddDisclosure = async (e) => {
             View Details
           </Button>
           <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
-              onClick={() => handlePublishToggle(disclosure.id, disclosure.is_published !== false)}
+              onClick={() => handlePublishToggle(disclosure)}
               className={disclosure.is_published !== false ? "text-yellow-600" : "text-green-600"}
             >
               {disclosure.is_published !== false ? 'Unpublish' : 'Publish'}
@@ -513,7 +510,9 @@ const handleAddDisclosure = async (e) => {
           <Card>
             <CardContent className="p-6 text-center">
               <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-foreground mb-1">{categories.length}</div>
+              <div className="text-2xl font-bold text-foreground mb-1">
+                {categories.length - 1}
+              </div>
               <div className="text-sm text-muted-foreground">Categories</div>
             </CardContent>
           </Card>
@@ -617,21 +616,30 @@ const handleAddDisclosure = async (e) => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Category *
-                    </label>
-                    <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map(category => (
-                          <SelectItem key={category} value={category}>{category}</SelectItem>
+                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category *
+                  </label>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, category: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories
+                        .filter((category) => category !== "All")
+                        .map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    </SelectContent>
+                  </Select>
+                </div>
                 </div>
 
                 <div className="flex items-center space-x-2">

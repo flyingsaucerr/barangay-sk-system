@@ -81,7 +81,7 @@ class AnnouncementController extends Controller
             $announcement->tags()->sync($tagIds);
         }
 
-        return response()->json($announcement->load('tags', 'user'));
+        return response()->json($announcement->load('tags'));
     }
 
     public function destroy($id)

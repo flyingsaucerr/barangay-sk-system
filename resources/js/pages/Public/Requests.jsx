@@ -112,21 +112,23 @@ const handleSubmit = async (e) => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-foreground mb-4 flex items-center justify-center gap-3">
-            <FileText className="h-8 w-8 text-primary" />
-            Submit a Request
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Share your suggestions, solicitations, or requests for changes to help improve our barangay community
-          </p>
-        </div>
+        <div className="bg-primary text-white py-12">
+          <div className="container mx-auto px-4 text-center">
+          <div className="flex justify-center mb-4">
+            <FileText className="h-12 w-12 text-white" />
+          </div>
+            <h1 className="text-4xl font-bold mb-4">Submit a Request</h1>
+            <p className="text-xl opacity-90 max-w-2xl mx-auto">
+              Share your suggestions, solicitations, or requests for changes to help improve our barangay community
+            </p>
+            </div>
+          </div>
+        <div className="max-w-4xl mx-auto">
 
         {/* Request Types Info */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6  mb-8 mt-10">
           <Card className="text-center hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -316,6 +318,9 @@ const handleSubmit = async (e) => {
                       onChange={handleInputChange}
                       required
                       placeholder="+63 XXX XXX XXXX"
+                      maxLength={11} 
+                      pattern="\d{11}" 
+                      title="Contact number must be exactly 11 digits"
                     />
                   </div>
                 </div>

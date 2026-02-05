@@ -351,14 +351,6 @@ const Projects = () => {
                   </div>
                 </div>
 
-                {/* Description */}
-                <div>
-                  <h3 className="font-semibold text-lg mb-3">About this Project</h3>
-                  <p className="text-gray-700 leading-relaxed">
-                    {selectedProject.description}
-                  </p>
-                </div>
-
                 {/* Full Description */}
                 {selectedProject.full_description && (
                   <div>
@@ -388,15 +380,6 @@ const Projects = () => {
                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
                   >
                     Close
-                  </button>
-                  <button
-                    onClick={() => {
-                      // This could link to a feedback form or contact page
-                      alert('For questions or feedback about this project, please contact the Barangay Office.');
-                    }}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                  >
-                    Contact About Project
                   </button>
                 </div>
               </div>
