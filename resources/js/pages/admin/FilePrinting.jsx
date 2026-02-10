@@ -468,6 +468,10 @@ const handleDownloadFile = async (requestId, file) => {
                         variant="destructive"
                         size="sm"
                         onClick={() => deleteRequest(request.id)}
+                        disabled={ !['pending', 'cancelled'].includes(request.status) }
+                        title={ !['pending', 'cancelled'].includes(request.status)
+                                  ? "Cannot delete requests that are Processing, Ready, or Completed"
+                                  : "" }
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -617,17 +621,33 @@ const handleDownloadFile = async (requestId, file) => {
               <div className="border-t pt-6">
                 <h3 className="font-semibold mb-3">Update Status</h3>
                 <div className="flex flex-wrap gap-2">
-                  {['pending', 'processing', 'ready', 'completed', 'cancelled'].map((status) => (
-                    <Button
-                      key={status}
-                      variant={selectedRequest.status === status ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => updateStatus(selectedRequest.id, status)}
-                      disabled={selectedRequest.status === status}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </Button>
-                  ))}
+                  {(() => {
+                    // Define allowed transitions
+                    const allowedTransitions = {
+                      pending: ['pending', 'processing', 'ready', 'completed', 'cancelled'], // can go anywhere
+                      processing: ['processing', 'ready', 'completed', 'cancelled'],         // cannot go back to pending
+                      ready: ['ready', 'completed', 'processing'],                           // cannot cancel
+                      completed: ['completed'],                                              // cannot change
+                      cancelled: ['cancelled'],                                              // cannot change
+                    };
+                    const currentStatus = selectedRequest.status;
+
+                    return ['pending', 'processing', 'ready', 'completed', 'cancelled'].map((status) => {
+                      const isAllowed = allowedTransitions[currentStatus].includes(status);
+
+                      return (
+                        <Button
+                          key={status}
+                          variant={currentStatus === status ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => updateStatus(selectedRequest.id, status)}
+                          disabled={!isAllowed || currentStatus === status}
+                        >
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </Button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
@@ -646,6 +666,10 @@ const handleDownloadFile = async (requestId, file) => {
                     setShowDetails(false);
                     deleteRequest(selectedRequest.id);
                   }}
+                  disabled={ !['pending', 'cancelled'].includes(selectedRequest.status) }
+                  title={ !['pending', 'cancelled'].includes(selectedRequest.status) 
+                            ? "Cannot delete requests that are Processing, Ready, or Completed" 
+                            : "" }
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete Request

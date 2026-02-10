@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { 
   FileText, 
-  Users, 
+  BarChart3,
+  Users,
   Calendar,
   Megaphone,
   Building,
@@ -16,13 +17,15 @@ import {
   CheckCircle,
   Star,
   TrendingUp,
-  Plus
+  Plus,
+  Facebook,
+  Instagram
 } from "lucide-react";
 import { Link } from "react-router-dom";
-
 import { useAuth } from "@/hooks/useAuth";
 import heroImage from "@/assets/sk-hero-banner.jpg";
 import barangayHall from "@/assets/barangayHall.jpg";
+
 
 // StatsCard Component
 const StatsCard = ({ title, value, icon: Icon, description, trend }) => (
@@ -86,7 +89,8 @@ export default function CombinedHome() {
 
   // Services for public section
   const services = [
-    { title: "Document Requests", description: "Solicitation, suggestions", icon: <FileText className="h-6 w-6" />, link: "/submit-request" },
+
+    { title: "Document Requests", description: "Solicitation, suggestions", icon: <FileText className="h-6 w-6" />, link: "/admin/requests" },
     { title: "Facility Viewing", description: "Track facility status", icon: <Building className="h-6 w-6" />, link: "/admin/facilities" },
     { title: "Project Updates", description: "Stay informed about community development projects", icon: <Award className="h-6 w-6" />, link: "/admin/projects" },
     { title: "Announcements", description: "Latest news and updates from your barangay", icon: <Megaphone className="h-6 w-6" />, link: "/admin/announcements" },
@@ -98,11 +102,11 @@ export default function CombinedHome() {
     { title: "Transparent Process", description: "Clear and transparent service delivery", icon: <Star className="h-5 w-5 text-primary" /> },
   ];
 
-  const publicStats = [
+ const publicStats = [
     { label: "Active Projects", value: "23", icon: <Building className="h-5 w-5" /> },
-    { label: "Served Residents", value: "1,250+", icon: <Users className="h-5 w-5" /> },
     { label: "Completed Requests", value: "890", icon: <CheckCircle className="h-5 w-5" /> },
-    { label: "Community Programs", value: "15", icon: <Award className="h-5 w-5" /> },
+    { label: "Accomplishmentys", value: "15", icon: <Award className="h-5 w-5" /> },
+    { label: "Reports", value: "Monthly", icon: <BarChart3 className="h-5 w-5" /> },
   ];
 
   // Dashboard data
@@ -163,7 +167,7 @@ export default function CombinedHome() {
               <h1 className="text-4xl lg:text-6xl font-bold text-foreground leading-tight">
                 Welcome to{" "}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-government-blue to-government-red">
-                  SK Kagawad Link
+                  SK Tumana
                 </span>
               </h1>
               <p className="text-xl text-muted-foreground leading-relaxed">
@@ -177,10 +181,10 @@ export default function CombinedHome() {
                   </Button>
                 ) : (
                   <Button size="lg" asChild className="bg-gradient-to-r from-government-blue to-primary">
-                    <Link to="/auth">Get Started <ArrowRight className="ml-2 h-5 w-5" /></Link>
+                    <Link to="/admin/Dashboard">Get Started <ArrowRight className="ml-2 h-5 w-5" /></Link>
                   </Button>
                 )}
-                <Button variant="outline" size="lg" asChild><Link to="/about">Learn More</Link></Button>
+                <Button variant="outline" size="lg" asChild><Link to="/admin/About">Learn More</Link></Button>
               </div>
 
               {/* Contact Info */}
@@ -214,7 +218,7 @@ export default function CombinedHome() {
             <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-government-blue via-primary to-government-red p-8 text-white">
               <div className="relative z-10">
                 <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                  Welcome to SK Kagawad Link
+                  Welcome to SK Tumana
                 </h1>
                 <p className="text-lg mb-6 opacity-90">
                   Your digital gateway to barangay services and community engagement
@@ -335,7 +339,7 @@ export default function CombinedHome() {
                     </Link>
                   </Button>
                   <Button variant="outline" className="h-20 flex flex-col space-y-2" asChild>
-                    <Link to="/about">
+                    <Link to="/About">
                       <Users className="h-6 w-6" />
                       <span className="text-sm">Contact Us</span>
                     </Link>
@@ -414,23 +418,49 @@ export default function CombinedHome() {
         </div>
       </section>
 
-      {/* CTA Section (For all users) */}
-      <section className="py-16 bg-gradient-to-r from-government-blue to-government-red">
-        <div className="container mx-auto px-4 text-center text-white">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-4">Ready to Get Started?</h2>
-          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-            Join thousands of residents who have already experienced the convenience of digital barangay services.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild>
-              <Link to={user ? "/submit-request" : "/auth"}>
-                {user ? "Submit a Request" : "Create Account"} <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-primary" asChild>
-              <Link to="/announcements">View Announcements</Link>
-            </Button>
+      {/* Footer / Social Media Section */}
+      <section className="py-12 bg-gray-900">
+        <div className="container mx-auto px-4 text-center text-gray-300">
+          
+          <h3 className="text-lg font-semibold text-white mb-6">
+            SK Tumana 2023
+          </h3>
+
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center text-sm">
+            {/* Facebook */}
+            <a
+              href="https://www.facebook.com/p/SK-Tumana-2023-61553850061537/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-white transition"
+            >
+              <Facebook size={18} />
+              <span>SK Tumana 2023</span>
+            </a>
+            {/* Instagram */}
+            <a
+              href="https://www.instagram.com/sktumana/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-white transition"
+            >
+              <Instagram size={18} />
+              <span>@sktumana</span>
+            </a>
+            {/* Email */}
+            <a
+              href="mailto:sktumana.marikina@gmail.com"
+              className="flex items-center gap-2 hover:text-white transition"
+            >
+              <Mail size={18} />
+              <span>sktumana.marikina@gmail.com</span>
+            </a>
+
           </div>
+          <p className="mt-8 text-xs text-gray-500">
+            © {new Date().getFullYear()} SK Tumana. All rights reserved.
+          </p>
+
         </div>
       </section>
     </div>

@@ -22,7 +22,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4 flex justify-between items-center h-16">
         {/* Logo */}
         <Link to="/" className="text-xl font-bold text-primary">
-          SK Kagawad Link
+          SK Tumana
         </Link>
 
         {/* Menu Links */}

@@ -3,8 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { 
   FileText, 
-  Users, 
-  Calendar,
+  BarChart3,
   Megaphone,
   Building,
   Award,
@@ -14,7 +13,9 @@ import {
   MapPin,
   Clock,
   CheckCircle,
-  Star
+  Star,
+  Facebook,
+  Instagram
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -37,9 +38,9 @@ export default function PublicHome() {
 
   const stats = [
     { label: "Active Projects", value: "23", icon: <Building className="h-5 w-5" /> },
-    { label: "Served Residents", value: "1,250+", icon: <Users className="h-5 w-5" /> },
     { label: "Completed Requests", value: "890", icon: <CheckCircle className="h-5 w-5" /> },
-    { label: "Community Programs", value: "15", icon: <Award className="h-5 w-5" /> },
+    { label: "Accomplishmentys", value: "15", icon: <Award className="h-5 w-5" /> },
+    { label: "Reports", value: "Monthly", icon: <BarChart3 className="h-5 w-5" /> },
   ];
 
   const recentAccomplishments = [
@@ -140,7 +141,7 @@ export default function PublicHome() {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" asChild className="bg-gradient-to-r from-government-blue to-primary">
-                  <Link to="/services">Explore Services <ArrowRight className="ml-2 h-5 w-5" /></Link>
+                  <Link to="/Projects">Explore Services <ArrowRight className="ml-2 h-5 w-5" /></Link>
                 </Button>
                 <Button variant="outline" size="lg" asChild>
                   <Link to="/about">Learn More</Link>
@@ -220,8 +221,8 @@ export default function PublicHome() {
               </Card>
             ))}
           </div>
-          <div className="text-center">
-            <Button asChild variant="outline">
+          <div className="text-center mt-8">
+            <Button asChild>
               <Link to="/announcements">View All Announcements</Link>
             </Button>
           </div>
@@ -323,23 +324,49 @@ export default function PublicHome() {
         </div>
       </section>
 
-      {/* Contact CTA Section */}
-      <section className="py-16 bg-gradient-to-r from-government-blue to-government-red">
-        <div className="container mx-auto px-4 text-center text-white">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-4">Need Assistance?</h2>
-          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-            Get in touch with our barangay officials for any inquiries or assistance you may need.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild>
-              <Link to="/contact">
-                Contact Us <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-primary" asChild>
-              <Link to="/visit">Visit Barangay Hall</Link>
-            </Button>
+      {/* Footer / Social Media Section */}
+      <section className="py-12 bg-gray-900">
+        <div className="container mx-auto px-4 text-center text-gray-300">
+          
+          <h3 className="text-lg font-semibold text-white mb-6">
+            SK Tumana 2023
+          </h3>
+
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center text-sm">
+            {/* Facebook */}
+            <a
+              href="https://www.facebook.com/p/SK-Tumana-2023-61553850061537/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-white transition"
+            >
+              <Facebook size={18} />
+              <span>SK Tumana 2023</span>
+            </a>
+            {/* Instagram */}
+            <a
+              href="https://www.instagram.com/sktumana/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-white transition"
+            >
+              <Instagram size={18} />
+              <span>@sktumana</span>
+            </a>
+            {/* Email */}
+            <a
+              href="mailto:sktumana.marikina@gmail.com"
+              className="flex items-center gap-2 hover:text-white transition"
+            >
+              <Mail size={18} />
+              <span>sktumana.marikina@gmail.com</span>
+            </a>
+
           </div>
+          <p className="mt-8 text-xs text-gray-500">
+            © {new Date().getFullYear()} SK Tumana. All rights reserved.
+          </p>
+
         </div>
       </section>
     </div>

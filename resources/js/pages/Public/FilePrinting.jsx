@@ -278,10 +278,15 @@ const handleSubmit = async (e) => {
                       <Label htmlFor="statusContact">Contact Number</Label>
                       <Input
                         id="statusContact"
-                        type="tel"
+                        type="text" 
                         placeholder="Your registered contact number"
                         value={statusContactInfo}
-                        onChange={(e) => setStatusContactInfo(e.target.value)}
+                        required
+                        onChange={(e) => {
+                          // Keep only digits and limit to 11
+                          const numericValue = e.target.value.replace(/\D/g, '').slice(0, 11);
+                          setStatusContactInfo(numericValue);
+                        }}
                       />
                     </div>
                   </div>
@@ -448,11 +453,15 @@ const handleSubmit = async (e) => {
                       <Label htmlFor="contact">Contact Number *</Label>
                       <Input
                         id="contact"
-                        type="tel"
+                        type="text" // use text so we can filter digits
                         placeholder="Your phone number"
                         value={contactInfo}
-                        onChange={(e) => setContactInfo(e.target.value)}
                         required
+                        onChange={(e) => {
+                          // Keep only digits and limit to 11 characters
+                          const numericValue = e.target.value.replace(/\D/g, '').slice(0, 11);
+                          setContactInfo(numericValue);
+                        }}
                       />
                     </div>
                   </div>
@@ -494,6 +503,12 @@ const handleSubmit = async (e) => {
                       onChange={(e) => setNotes(e.target.value)}
                       rows={3}
                     />
+                  </div>
+
+                  <div className="p-3 mb-4 border rounded-lg bg-yellow-50 text-yellow-900 text-sm">
+                    <strong>Note:</strong> Once you submit your file, you can view your <strong>tracking number</strong> on the Status Checker. 
+                    <strong> Take note of your tracking number and contact number</strong> to track your files. 
+                    You can see the status as <em>Pending, Processing, Ready, Completed, or Cancelled</em>.
                   </div>
 
                   <Button type="submit" className="w-full" disabled={submitting}>
