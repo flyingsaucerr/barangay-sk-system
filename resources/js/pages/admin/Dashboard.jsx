@@ -86,7 +86,7 @@ export default function CombinedHome() {
 
   // Services for public section
   const services = [
-    { title: "Document Requests", description: "Solicitation, suggestions", icon: <FileText className="h-6 w-6" />, link: "/admin/submit-request" },
+    { title: "Document Requests", description: "Solicitation, suggestions", icon: <FileText className="h-6 w-6" />, link: "/submit-request" },
     { title: "Facility Viewing", description: "Track facility status", icon: <Building className="h-6 w-6" />, link: "/admin/facilities" },
     { title: "Project Updates", description: "Stay informed about community development projects", icon: <Award className="h-6 w-6" />, link: "/admin/projects" },
     { title: "Announcements", description: "Latest news and updates from your barangay", icon: <Megaphone className="h-6 w-6" />, link: "/admin/announcements" },

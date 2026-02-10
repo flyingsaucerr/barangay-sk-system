@@ -6,6 +6,8 @@ use App\Models\KKIDProfile;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class KKIDProfileController extends Controller
 {
@@ -14,13 +16,12 @@ class KKIDProfileController extends Controller
      */
     public function index(Request $request)
     {
+        Log::info('=== KKID Profile index START ===', [
+            'user_id' => auth()->id(),
+            'request' => $request->all()
+        ]);
+        
         try {
-            \Log::info('KKID Profile index called', [
-                'user_id' => auth()->id(),
-                'search' => $request->search,
-                'status' => $request->status
-            ]);
-            
             $query = KKIDProfile::query();
             
             // Search functionality
@@ -38,21 +39,24 @@ class KKIDProfileController extends Controller
                 $query->where('status', $request->status);
             }
             
-            $profiles = $query->orderBy('created_at', 'desc')->paginate(20);
+            // Get all profiles (no pagination for now to simplify)
+            $profiles = $query->orderBy('created_at', 'desc')->get();
             
+            Log::info('Profiles fetched:', ['count' => $profiles->count()]);
+            
+            // Return proper JSON response
             return response()->json([
                 'success' => true,
                 'data' => $profiles,
                 'statistics' => $this->getStatistics()
-            ]);
+            ], 200, [], JSON_PRETTY_PRINT);
             
         } catch (\Exception $e) {
-            \Log::error('KKID Profile index error: ' . $e->getMessage());
+            Log::error('KKID Profile index error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch profiles',
-                'error' => $e->getMessage(),
-                'trace' => env('APP_DEBUG') ? $e->getTraceAsString() : null
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
@@ -63,7 +67,14 @@ class KKIDProfileController extends Controller
     public function show($id)
     {
         try {
-            $profile = KKIDProfile::findOrFail($id);
+            $profile = KKIDProfile::find($id);
+            
+            if (!$profile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile not found'
+                ], 404);
+            }
             
             return response()->json([
                 'success' => true,
@@ -71,10 +82,11 @@ class KKIDProfileController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            Log::error('KKID Profile show error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Profile not found'
-            ], 404);
+                'message' => 'Error fetching profile'
+            ], 500);
         }
     }
 
@@ -83,6 +95,8 @@ class KKIDProfileController extends Controller
      */
     public function store(Request $request)
     {
+        Log::info('KKID Profile store called', ['request_keys' => array_keys($request->all())]);
+        
         try {
             $validator = Validator::make($request->all(), [
                 'full_name' => 'required|string|max:255',
@@ -101,12 +115,14 @@ class KKIDProfileController extends Controller
                 'email' => 'nullable|email|max:255',
                 'facebook_account' => 'nullable|string|max:255',
                 'contact_number' => 'required|string|max:20',
-                'is_voter' => 'boolean',
+                'is_voter' => 'nullable|boolean',
                 'precinct_number' => 'nullable|string|max:50',
-                'status' => 'in:pending,approved,rejected'
+                'status' => 'required|in:pending,approved,rejected',
+                'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120'
             ]);
 
             if ($validator->fails()) {
+                Log::error('Validation failed', $validator->errors()->toArray());
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
@@ -121,6 +137,20 @@ class KKIDProfileController extends Controller
                 $validated['approved_date'] = now()->toDateString();
             }
 
+            // Handle photo upload
+            if ($request->hasFile('photo')) {
+                Log::info('Photo file received', ['filename' => $request->file('photo')->getClientOriginalName()]);
+                $photo = $request->file('photo');
+                $photoName = time() . '_' . $photo->getClientOriginalName();
+                $photoPath = $photo->storeAs('kkid_photos', $photoName, 'public');
+                $validated['photo_url'] = Storage::url($photoPath);
+                Log::info('Photo saved', ['path' => $photoPath, 'url' => $validated['photo_url']]);
+            }
+
+            // Convert boolean values
+            $validated['is_voter'] = isset($validated['is_voter']) ? (bool)$validated['is_voter'] : false;
+
+            Log::info('Creating profile with data:', array_keys($validated));
             $profile = KKIDProfile::create($validated);
 
             return response()->json([
@@ -130,11 +160,10 @@ class KKIDProfileController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            \Log::error('KKID Profile store error: ' . $e->getMessage());
+            Log::error('KKID Profile store error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create profile',
-                'error' => $e->getMessage()
+                'message' => 'Failed to create profile: ' . (env('APP_DEBUG') ? $e->getMessage() : 'Internal server error')
             ], 500);
         }
     }
@@ -144,8 +173,17 @@ class KKIDProfileController extends Controller
      */
     public function update(Request $request, $id)
     {
+        Log::info('KKID Profile update called', ['id' => $id, 'request_keys' => array_keys($request->all())]);
+        
         try {
-            $profile = KKIDProfile::findOrFail($id);
+            $profile = KKIDProfile::find($id);
+            
+            if (!$profile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile not found'
+                ], 404);
+            }
             
             $validator = Validator::make($request->all(), [
                 'full_name' => 'string|max:255',
@@ -164,12 +202,14 @@ class KKIDProfileController extends Controller
                 'email' => 'nullable|email|max:255',
                 'facebook_account' => 'nullable|string|max:255',
                 'contact_number' => 'string|max:20',
-                'is_voter' => 'boolean',
+                'is_voter' => 'nullable|boolean',
                 'precinct_number' => 'nullable|string|max:50',
-                'status' => 'in:pending,approved,rejected'
+                'status' => 'in:pending,approved,rejected',
+                'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120'
             ]);
 
             if ($validator->fails()) {
+                Log::error('Validation failed on update', $validator->errors()->toArray());
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
@@ -179,6 +219,11 @@ class KKIDProfileController extends Controller
 
             $validated = $validator->validated();
             
+            // Convert is_voter to boolean
+            if (isset($validated['is_voter'])) {
+                $validated['is_voter'] = (bool)$validated['is_voter'];
+            }
+            
             // If status is being updated to approved and hasn't been approved before
             if (isset($validated['status']) && 
                 $validated['status'] === 'approved' && 
@@ -186,6 +231,22 @@ class KKIDProfileController extends Controller
                 $validated['approved_date'] = now()->toDateString();
             }
 
+            // Handle photo upload for updates
+            if ($request->hasFile('photo')) {
+                Log::info('Updating photo for profile', ['id' => $id]);
+                // Delete old photo if exists
+                if ($profile->photo_url) {
+                    $oldPhotoPath = str_replace('/storage/', '', $profile->photo_url);
+                    Storage::disk('public')->delete($oldPhotoPath);
+                }
+                
+                $photo = $request->file('photo');
+                $photoName = time() . '_' . $photo->getClientOriginalName();
+                $photoPath = $photo->storeAs('kkid_photos', $photoName, 'public');
+                $validated['photo_url'] = Storage::url($photoPath);
+            }
+
+            Log::info('Updating profile with data:', array_keys($validated));
             $profile->update($validated);
 
             return response()->json([
@@ -195,11 +256,10 @@ class KKIDProfileController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('KKID Profile update error: ' . $e->getMessage());
+            Log::error('KKID Profile update error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update profile',
-                'error' => $e->getMessage()
+                'message' => 'Failed to update profile: ' . (env('APP_DEBUG') ? $e->getMessage() : 'Internal server error')
             ], 500);
         }
     }
@@ -210,7 +270,21 @@ class KKIDProfileController extends Controller
     public function destroy($id)
     {
         try {
-            $profile = KKIDProfile::findOrFail($id);
+            $profile = KKIDProfile::find($id);
+            
+            if (!$profile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile not found'
+                ], 404);
+            }
+            
+            // Delete photo if exists
+            if ($profile->photo_url) {
+                $oldPhotoPath = str_replace('/storage/', '', $profile->photo_url);
+                Storage::disk('public')->delete($oldPhotoPath);
+            }
+            
             $profile->delete();
 
             return response()->json([
@@ -219,11 +293,10 @@ class KKIDProfileController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('KKID Profile destroy error: ' . $e->getMessage());
+            Log::error('KKID Profile destroy error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete profile',
-                'error' => $e->getMessage()
+                'message' => 'Failed to delete profile'
             ], 500);
         }
     }
@@ -234,7 +307,14 @@ class KKIDProfileController extends Controller
     public function updateStatus(Request $request, $id)
     {
         try {
-            $profile = KKIDProfile::findOrFail($id);
+            $profile = KKIDProfile::find($id);
+            
+            if (!$profile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile not found'
+                ], 404);
+            }
             
             $request->validate([
                 'status' => 'required|in:pending,approved,rejected'
@@ -256,13 +336,56 @@ class KKIDProfileController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('KKID Profile updateStatus error: ' . $e->getMessage());
+            Log::error('KKID Profile updateStatus error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update status',
-                'error' => $e->getMessage()
+                'message' => 'Failed to update status'
             ], 500);
         }
+    }
+
+    public function generateID($id)
+    {
+        try {
+            $profile = KKIDProfile::find($id);
+            
+            if (!$profile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile not found'
+                ], 404);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'profile' => $profile,
+                    'id_card_data' => [
+                        'full_name' => $profile->full_name,
+                        'kkid_number' => $profile->kkid_number,
+                        'validity_date' => $profile->validity_date,
+                        'youth_organization' => $profile->youth_organization,
+                        'email' => $profile->email,
+                        'facebook_account' => $profile->facebook_account,
+                        'contact_number' => $profile->contact_number,
+                        'is_voter' => $profile->is_voter,
+                        'precinct_number' => $profile->precinct_number,
+                        'status' => $profile->status
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('KKID Profile generateID error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate ID'
+            ], 500);
+        }
+    }   
+
+    private function generateQRCode($kkidNumber)
+    {
+        return null; // Temporarily return null
     }
 
     /**
@@ -278,7 +401,7 @@ class KKIDProfileController extends Controller
                 'rejected' => KKIDProfile::where('status', 'rejected')->count()
             ];
         } catch (\Exception $e) {
-            \Log::error('KKID Profile statistics error: ' . $e->getMessage());
+            Log::error('KKID Profile statistics error: ' . $e->getMessage());
             return [
                 'total' => 0,
                 'approved' => 0,

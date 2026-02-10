@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class KKIDProfile extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     /**
      * The table associated with the model.
@@ -45,7 +45,8 @@ class KKIDProfile extends Model
         'application_date',
         'approved_date',
         'created_by',
-        'updated_by'
+        'updated_by',
+        'photo_url'
     ];
 
     /**

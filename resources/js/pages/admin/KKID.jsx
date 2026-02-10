@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,12 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
   User, Search, Plus, Edit, Trash2, X, Eye, Calendar, Phone, MapPin, Mail, 
-  Loader2, Printer, Download, Camera, QrCode, Barcode, Signature, Clock
+  Loader2, Info, CheckCircle, Printer, Download, Camera,
+  Upload, FlipHorizontal, Maximize2, Minimize2
 } from "lucide-react";
 import { toast } from "sonner";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-
 
 const AdminKKID = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +28,13 @@ const AdminKKID = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [showCardBack, setShowCardBack] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const photoInputRef = useRef(null);
+  const idCardFrontRef = useRef(null);
+  const idCardBackRef = useRef(null);
   const [statistics, setStatistics] = useState({
     total: 0,
     approved: 0,
@@ -35,7 +42,19 @@ const AdminKKID = () => {
     rejected: 0
   });
 
-  // Initialize formData with proper default values
+  const generateKKIDNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    return `KKID-${year}${month}${day}-${random}`;
+  };
+
+  const getDefaultValidityDate = () => {
+    return '2028-12-31';
+  };
+
   const initialFormData = {
     full_name: '',
     address: '',
@@ -47,54 +66,21 @@ const AdminKKID = () => {
     emergency_contact_number: '',
     emergency_contact_relationship: '',
     civil_status: '',
-    kkid_number: '',
-    validity_date: '',
+    kkid_number: generateKKIDNumber(),
+    validity_date: getDefaultValidityDate(),
     youth_organization: '',
     email: '',
     facebook_account: '',
     contact_number: '',
     is_voter: false,
     precinct_number: '',
-    status: 'pending'
+    status: 'pending',
+    photo_url: ''
   };
-
-    const printStyles = `
-    @media print {
-      body * {
-        visibility: hidden;
-      }
-      
-      #id-card-template, #id-card-template * {
-        visibility: visible;
-      }
-      
-      #id-card-template {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 3.375in !important;
-        height: 2.125in !important;
-        box-shadow: none !important;
-        border: 1px solid #000 !important;
-      }
-      
-      * {
-        -webkit-print-color-adjust: exact;
-      }
-      
-      @page {
-        margin: 0;
-        size: 3.375in 2.125in;
-      }
-    }
-  `;
-
 
   const [formData, setFormData] = useState(initialFormData);
 
-  // Fetch profiles
+  // Fetch profiles function
   const fetchProfiles = async () => {
     try {
       setLoading(true);
@@ -110,6 +96,7 @@ const AdminKKID = () => {
       
       const headers = {
         'Accept': 'application/json',
+        'Content-Type': 'application/json',
       };
       
       if (token) {
@@ -120,28 +107,40 @@ const AdminKKID = () => {
         headers: headers,
         credentials: 'include'
       });
-
-      const data = await response.json();
       
-      if (response.ok && data.success) {
-        setProfiles(data.data.data || data.data || []);
-        setStatistics(data.statistics || {
-          total: data.data?.total || 0,
-          approved: data.data?.approved || 0,
-          pending: data.data?.pending || 0,
-          rejected: data.data?.rejected || 0
-        });
+      const responseText = await response.text();
+      
+      if (!responseText.trim()) {
+        throw new Error('Empty response from server');
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+      
+      if (response.ok) {
+        if (data.success) {
+          setProfiles(data.data?.data || data.data || []);
+          setStatistics(data.statistics || {
+            total: data.data?.total || data.data?.length || 0,
+            approved: 0,
+            pending: 0,
+            rejected: 0
+          });
+        } else {
+          let errorMessage = data.message || 'Failed to fetch profiles';
+          if (data.error) errorMessage += `: ${data.error}`;
+          if (data.errors) errorMessage += ' - ' + Object.values(data.errors).flat().join(', ');
+          toast.error(errorMessage);
+        }
       } else {
-        let errorMessage = data.message || 'Failed to fetch profiles';
-        
-        if (data.error) {
-          errorMessage += `: ${data.error}`;
-        }
-        
-        if (data.errors) {
-          errorMessage += ' - ' + Object.values(data.errors).flat().join(', ');
-        }
-        
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        if (data && data.message) errorMessage = data.message;
+        if (data && data.error) errorMessage += `: ${data.error}`;
         toast.error(errorMessage);
         
         if (response.status === 401) {
@@ -150,26 +149,28 @@ const AdminKKID = () => {
           localStorage.removeItem('userRole');
           localStorage.removeItem('userId');
           localStorage.removeItem('userName');
-          navigate('/admin/login');
         }
       }
     } catch (error) {
       console.error('Error fetching profiles:', error);
-      toast.error('Failed to load KKID profiles. Please check your connection.');
+      
+      if (error.message.includes('Failed to fetch')) {
+        toast.error('Network error. Please check your internet connection and server status.');
+      } else if (error.message.includes('Empty response')) {
+        toast.error('Server returned empty response. Check if API endpoint is working.');
+      } else if (error.message.includes('Invalid JSON')) {
+        toast.error('Server returned invalid data. Please check server logs.');
+      } else {
+        toast.error('Failed to load KKID profiles. Please try again.');
+      }
       
       setProfiles([]);
-      setStatistics({
-        total: 0,
-        approved: 0,
-        pending: 0,
-        rejected: 0
-      });
+      setStatistics({ total: 0, approved: 0, pending: 0, rejected: 0 });
     } finally {
       setLoading(false);
     }
   };
 
-  // Load profiles on component mount and when filters change
   useEffect(() => {
     fetchProfiles();
   }, [searchTerm, statusFilter]);
@@ -199,7 +200,33 @@ const AdminKKID = () => {
 
   const handleViewID = (profile) => {
     setSelectedIDProfile(profile);
+    setPhotoPreview(profile.photo_url || null);
     setShowIDModal(true);
+    setShowCardBack(false);
+    setIsFullscreen(false);
+  };
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please upload an image file');
+        return;
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      
+      setPhotoFile(file);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddProfile = async (e) => {
@@ -208,14 +235,30 @@ const AdminKKID = () => {
     
     try {
       const token = localStorage.getItem('authToken');
+      const formDataToSend = new FormData();
+      
+      Object.keys(formData).forEach(key => {
+        if (key !== 'photo_url') {
+          const value = formData[key];
+          if (typeof value === 'boolean') {
+            formDataToSend.append(key, value ? '1' : '0');
+          } else {
+            formDataToSend.append(key, value || '');
+          }
+        }
+      });
+      
+      if (photoFile) {
+        formDataToSend.append('photo', photoFile);
+      }
+      
       const response = await fetch('/api/kkid-profiles', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: formDataToSend,
       });
 
       const data = await response.json();
@@ -242,46 +285,38 @@ const AdminKKID = () => {
     }
   };
 
-  const handleEditProfile = (profile) => {
-    setEditingProfile(profile);
-    setFormData({
-      full_name: profile.full_name || '',
-      address: profile.address || '',
-      birthday: profile.birthday ? profile.birthday.split('T')[0] : '',
-      gender: profile.gender || '',
-      emergency_contact_name: profile.emergency_contact_name || '',
-      emergency_contact_address: profile.emergency_contact_address || '',
-      emergency_contact_birthday: profile.emergency_contact_birthday ? profile.emergency_contact_birthday.split('T')[0] : '',
-      emergency_contact_number: profile.emergency_contact_number || '',
-      emergency_contact_relationship: profile.emergency_contact_relationship || '',
-      civil_status: profile.civil_status || '',
-      kkid_number: profile.kkid_number || '',
-      validity_date: profile.validity_date ? profile.validity_date.split('T')[0] : '',
-      youth_organization: profile.youth_organization || '',
-      email: profile.email || '',
-      facebook_account: profile.facebook_account || '',
-      contact_number: profile.contact_number || '',
-      is_voter: profile.is_voter || false,
-      precinct_number: profile.precinct_number || '',
-      status: profile.status || 'pending'
-    });
-    setShowForm(true);
-  };
-
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     
     try {
       const token = localStorage.getItem('authToken');
+      const formDataToSend = new FormData();
+      
+      Object.keys(formData).forEach(key => {
+        if (key !== 'photo_url') {
+          const value = formData[key];
+          if (typeof value === 'boolean') {
+            formDataToSend.append(key, value ? '1' : '0');
+          } else {
+            formDataToSend.append(key, value || '');
+          }
+        }
+      });
+      
+      if (photoFile) {
+        formDataToSend.append('photo', photoFile);
+      }
+      
+      formDataToSend.append('_method', 'PUT');
+      
       const response = await fetch(`/api/kkid-profiles/${editingProfile.id}`, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: formDataToSend,
       });
 
       const data = await response.json();
@@ -307,6 +342,34 @@ const AdminKKID = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEditProfile = (profile) => {
+    setEditingProfile(profile);
+    setPhotoPreview(profile.photo_url || null);
+    setFormData({
+      full_name: profile.full_name || '',
+      address: profile.address || '',
+      birthday: profile.birthday ? profile.birthday.split('T')[0] : '',
+      gender: profile.gender || '',
+      emergency_contact_name: profile.emergency_contact_name || '',
+      emergency_contact_address: profile.emergency_contact_address || '',
+      emergency_contact_birthday: profile.emergency_contact_birthday ? profile.emergency_contact_birthday.split('T')[0] : '',
+      emergency_contact_number: profile.emergency_contact_number || '',
+      emergency_contact_relationship: profile.emergency_contact_relationship || '',
+      civil_status: profile.civil_status || '',
+      kkid_number: profile.kkid_number || generateKKIDNumber(),
+      validity_date: profile.validity_date ? profile.validity_date.split('T')[0] : getDefaultValidityDate(),
+      youth_organization: profile.youth_organization || '',
+      email: profile.email || '',
+      facebook_account: profile.facebook_account || '',
+      contact_number: profile.contact_number || '',
+      is_voter: profile.is_voter || false,
+      precinct_number: profile.precinct_number || '',
+      status: profile.status || 'pending',
+      photo_url: profile.photo_url || ''
+    });
+    setShowForm(true);
   };
 
   const handleDeleteProfile = async (id) => {
@@ -346,7 +409,13 @@ const AdminKKID = () => {
   };
 
   const resetForm = () => {
-    setFormData(initialFormData);
+    setFormData({
+      ...initialFormData,
+      kkid_number: generateKKIDNumber(),
+      validity_date: getDefaultValidityDate()
+    });
+    setPhotoPreview(null);
+    setPhotoFile(null);
   };
 
   const handleStatusChange = async (id, newStatus) => {
@@ -379,297 +448,747 @@ const AdminKKID = () => {
     }
   };
 
-  // ID Card Functions
-const handlePrintID = async () => {
+  const handlePrintBothSides = async () => {
     setPrinting(true);
     try {
-      const idCard = document.getElementById('id-card-template');
-      const canvas = await html2canvas(idCard, {
-        scale: 3,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        imageTimeout: 0,
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Please allow popups to print the ID card');
+        return;
+      }
       
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
-          <head>
-            <title>KKID Card - ${selectedIDProfile.full_name}</title>
-            <style>
-              body { 
-                margin: 0; 
-                display: flex; 
-                justify-content: center; 
-                align-items: center; 
-                min-height: 100vh;
-                background: white;
+        <head>
+          <title>KKID - ${selectedIDProfile.full_name}</title>
+          <style>
+            @page { 
+              size: 85.6mm 54mm; 
+              margin: 0; 
+            }
+            body { 
+              margin: 0; 
+              padding: 0; 
+              width: 85.6mm;
+              height: 54mm;
+              background: white;
+              font-family: Arial, sans-serif;
+            }
+            .print-page { 
+              width: 85.6mm;
+              height: 54mm;
+              position: relative;
+              page-break-after: always;
+              box-sizing: border-box;
+            }
+            @media print {
+              body { margin: 0; }
+              .print-page { 
+                page-break-inside: avoid;
+                break-inside: avoid;
               }
-              img { 
-                max-width: 100%; 
-                height: auto;
-                image-rendering: crisp-edges;
-                width: 3.375in;
-                height: 2.125in;
-              }
-              @media print {
-                @page { 
-                  margin: 0; 
-                  size: 3.375in 2.125in;
-                }
-                body { 
-                  margin: 0;
-                  min-height: 0;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            <img src="${imgData}" alt="KKID Card" />
-            <script>
-              window.onload = () => {
-                setTimeout(() => {
-                  window.print();
-                  setTimeout(() => window.close(), 500);
-                }, 500);
-              };
-            </script>
-          </body>
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-page">
+            ${createFixedIDCardHTML('front')}
+          </div>
+          <div class="print-page">
+            ${createFixedIDCardHTML('back')}
+          </div>
+          <script>
+            setTimeout(() => { 
+              window.print(); 
+              setTimeout(() => window.close(), 1000); 
+            }, 500);
+          </script>
+        </body>
         </html>
       `);
       
       printWindow.document.close();
+      toast.success('Opening print dialog...');
+      
     } catch (error) {
-      console.error('Error printing ID:', error);
-      toast.error('Failed to print ID card');
+      console.error('Print error:', error);
+      toast.error('Failed to print. Please try downloading instead.');
     } finally {
       setPrinting(false);
     }
   };
 
-  const handleDownloadPDF = async () => {
-    setPrinting(true);
-    try {
-      const idCard = document.getElementById('id-card-template');
-      const canvas = await html2canvas(idCard, {
-        scale: 3,
-        backgroundColor: '#ffffff',
-        useCORS: true
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: [86, 54]
-      });
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, 86, 54);
-      pdf.save(`KKID-${selectedIDProfile.kkid_number}.pdf`);
-      toast.success('ID card downloaded successfully!');
-    } catch (error) {
-      console.error('Error downloading ID:', error);
-      toast.error('Failed to download ID card');
-    } finally {
-      setPrinting(false);
+  // Create fixed HTML for ID cards (for printing/downloading)
+const createFixedIDCardHTML = (side = 'front') => {
+  if (!selectedIDProfile) return '';
+  
+  const profile = selectedIDProfile;
+  const isFront = side === 'front';
+  
+  // Helper to fix image URL
+  const getImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http') || url.startsWith('data:')) {
+      return url;
     }
-  };
-
-  const handleDownloadImage = async () => {
-    setPrinting(true);
-    try {
-      const idCard = document.getElementById('id-card-template');
-      const canvas = await html2canvas(idCard, {
-        scale: 3,
-        backgroundColor: '#ffffff',
-        useCORS: true
-      });
-      
-      const link = document.createElement('a');
-      link.download = `KKID-${selectedIDProfile.kkid_number}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      toast.success('ID card image downloaded!');
-    } catch (error) {
-      console.error('Error downloading image:', error);
-      toast.error('Failed to download image');
-    } finally {
-      setPrinting(false);
+    if (url.startsWith('/')) {
+      return `${window.location.origin}${url}`;
     }
+    return url;
   };
-
-  // ID Card Layout Component
-  const IDCardLayout = ({ profile }) => (
-    <div className="bg-white p-8 flex flex-col items-center">
-      <div 
-        id="id-card-template"
-        className="w-[345px] h-[217px] bg-gradient-to-br from-blue-50 to-white border-4 border-blue-600 rounded-2xl shadow-2xl relative overflow-hidden"
-      >
-        {/* ID Card Design */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
-        <div className="absolute bottom-0 left-0 w-full h-2 bg-blue-600"></div>
-        
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-4 right-4 text-6xl font-bold text-blue-400">KKID</div>
-          <div className="absolute bottom-4 left-4 text-4xl font-bold text-blue-300 rotate-12">YOUTH</div>
-        </div>
-        
-        <div className="p-4 h-full flex">
-          {/* Left Section - Logo and Main Info */}
-          <div className="w-1/3 pr-3 border-r border-blue-200">
-            <div className="mb-3">
-              <div className="text-center">
-                <div className="inline-block p-2 bg-blue-600 rounded-lg">
-                  <User className="h-8 w-8 text-white" />
-                </div>
-              </div>
-              <div className="mt-2 text-center">
-                <div className="text-xs text-gray-500">KKID No.</div>
-                <div className="font-bold text-sm text-blue-700">{profile.kkid_number}</div>
-              </div>
-            </div>
-            
-            <div className="mt-4">
-              <div className="relative w-24 h-24 mx-auto border-2 border-blue-500 rounded-lg bg-gray-100 overflow-hidden">
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-gray-100">
-                  <Camera className="h-8 w-8 text-gray-400" />
-                </div>
-                <div className="absolute bottom-0 w-full bg-blue-600 text-white text-xs py-1 text-center">
-                  PHOTO
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-2 text-center">
-              <div className="text-xs text-gray-500">Valid Until</div>
-              <div className="font-bold text-xs text-red-600">
-                {new Date(profile.validity_date).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: '2-digit',
-                  year: 'numeric' 
-                })}
-              </div>
-            </div>
-          </div>
-          
-          {/* Right Section - Personal Details */}
-          <div className="w-2/3 pl-3">
-            <div className="mb-2">
-              <h2 className="font-bold text-lg truncate">{profile.full_name}</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge className="bg-green-100 text-green-800 text-xs">
-                  {profile.status === 'approved' ? 'ACTIVE' : profile.status.toUpperCase()}
-                </Badge>
-                <span className="text-xs text-gray-600">{profile.gender}</span>
-              </div>
-            </div>
-            
-            <div className="space-y-1.5 text-xs">
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Birthday:</div>
-                <div className="font-medium">
-                  {new Date(profile.birthday).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: '2-digit',
-                    year: 'numeric' 
-                  })}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Civil Status:</div>
-                <div className="font-medium">{profile.civil_status}</div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Contact:</div>
-                <div className="font-medium">{profile.contact_number}</div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Address:</div>
-                <div className="font-medium truncate">{profile.address.split(',')[0]}</div>
-              </div>
-              
-              {profile.youth_organization && (
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="text-gray-500">Organization:</div>
-                  <div className="font-medium truncate">{profile.youth_organization}</div>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Voter:</div>
-                <div className="font-medium">{profile.is_voter ? 'YES' : 'NO'}</div>
-              </div>
-            </div>
-            
-            {/* Signature Section */}
-            <div className="mt-3 pt-2 border-t border-dashed border-gray-300">
-              <div className="text-center">
-                <div className="text-xs text-gray-500">Authorized Signature</div>
-                <div className="h-6 border-b border-gray-400 w-3/4 mx-auto"></div>
-                <div className="text-[10px] text-gray-500 mt-1">Katipunan ng Kabataan</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Watermark */}
-        <div className="absolute bottom-1 right-2 text-[8px] text-gray-400">
-          ID: {profile.id.toString().padStart(6, '0')}
-        </div>
+  
+  let photoUrl = getImageUrl(profile.photo_url || '');
+  
+  // Update the img tag in the HTML to include onerror handler
+  const photoHTML = photoUrl ? 
+    `<img src="${photoUrl}" alt="${profile.full_name}" 
+          style="width: 100%; height: 100%; object-fit: cover; display: block;" 
+          crossOrigin="anonymous"
+          onerror="this.onerror=null; this.src='data:image/svg+xml;base64,${btoa(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+              <rect width="200" height="200" fill="#e0f2fe"/>
+              <circle cx="100" cy="80" r="40" fill="#94a3b8"/>
+              <rect x="60" y="130" width="80" height="40" rx="5" fill="#94a3b8"/>
+            </svg>
+          `)}';" />` :
+    `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);">
+      <svg width="12mm" height="12mm" viewBox="0 0 24 24" fill="#94a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    </div>`;
+  if (photoUrl && !photoUrl.startsWith('http') && !photoUrl.startsWith('data:')) {
+    photoUrl = photoUrl.startsWith('/') ? `${window.location.origin}${photoUrl}` : photoUrl;
+  }
+  
+  return `
+    <div style="width: 85.6mm; height: 54mm; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border-radius: 4mm; overflow: hidden; position: relative; font-family: Arial, sans-serif;">
+      <!-- Watermark -->
+      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 20mm; font-weight: 900; color: rgba(255, 255, 255, 0.08); letter-spacing: 2mm; font-family: Arial Black, sans-serif; white-space: nowrap; z-index: 1;">
+        KKID
       </div>
       
-      {/* Print & Download Buttons */}
-      <div className="mt-6 flex gap-3">
-        <Button
-          onClick={handlePrintID}
-          disabled={printing}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {printing ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+      <!-- Header -->
+      <div style="background: rgba(255, 255, 255, 0.95); padding: 1.5mm 2mm; text-align: center; border-bottom: 0.5mm solid ${isFront ? '#fbbf24' : '#ef4444'}; position: absolute; top: 0; left: 0; right: 0; height: 6mm; z-index: 2; display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 2.5mm; font-weight: bold; color: ${isFront ? '#1e40af' : '#dc2626'}; font-family: Arial Black, sans-serif; line-height: 1.1; letter-spacing: 0.05mm;">
+          ${isFront ? 'KATIPUNAN NG KABATAAN' : 'IN CASE OF EMERGENCY'}
+        </div>
+        ${isFront ? '<div style="font-size: 1.8mm; color: #64748b; font-weight: 600; letter-spacing: 0.03mm;">OFFICIAL IDENTIFICATION CARD</div>' : ''}
+      </div>
+      
+      <!-- Content -->
+      <div style="position: absolute; top: 6mm; left: 2mm; right: 2mm; bottom: 2mm; z-index: 2;">
+        ${isFront ? createFrontContentHTML(profile, photoUrl) : createBackContentHTML(profile)}
+      </div>
+      
+      <!-- Footer -->
+      <div style="position: absolute; bottom: 0.5mm; left: 50%; transform: translateX(-50%); font-size: 0.8mm; color: rgba(255,255,255,0.7); font-family: \'Courier New\', monospace; z-index: 2;">
+        ${isFront ? `ID #${profile.id?.toString().padStart(6, '0') || '000000'}` : 'EMERGENCY CONTACT'}
+      </div>
+    </div>
+  `;
+};
+
+const createFrontContentHTML = (profile, photoUrl) => {
+  return `
+    <div style="display: flex; gap: 2mm; height: 100%;">
+      <!-- Left Column - Photo & ID Info -->
+      <div style="width: 25.4mm; display: flex; flex-direction: column; gap: 1.2mm;">
+        <!-- Photo Container -->
+        <div style="width: 100%; height: 25.4mm; background: #ffffff; border-radius: 1mm; overflow: hidden; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.15); border: 0.3mm solid #fbbf24;">
+          ${photoUrl ? 
+            `<img src="${photoUrl}" alt="${profile.full_name}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />` :
+            `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);">
+              <svg width="12mm" height="12mm" viewBox="0 0 24 24" fill="#94a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            </div>`
+          }
+        </div>
+
+        <!-- KKID Number -->
+        <div style="background: #ffffff; padding: 0.8mm; border-radius: 0.5mm; text-align: center; box-shadow: 0 0.2mm 0.5mm rgba(0,0,0,0.1); border: 0.1mm solid #e2e8f0;">
+          <div style="font-size: 1.2mm; color: #64748b; font-weight: bold; margin-bottom: 0.3mm;">KKID NO.</div>
+          <div style="font-size: 1.6mm; font-weight: bold; color: #1e40af; font-family: 'Courier New', monospace; letter-spacing: 0.1mm;">${profile.kkid_number}</div>
+        </div>
+
+        <!-- Validity -->
+        <div style="background: #fef3c7; padding: 0.8mm; border-radius: 0.5mm; text-align: center; border: 0.2mm solid #fbbf24; margin-top: auto;">
+          <div style="font-size: 1.1mm; color: #92400e; font-weight: bold; margin-bottom: 0.3mm;">VALID UNTIL</div>
+          <div style="font-size: 1.5mm; font-weight: bold; color: #b45309;">${
+            profile.validity_date ? 
+              new Date(profile.validity_date).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric' 
+              }).toUpperCase() : 'DEC 31, 2028'
+          }</div>
+        </div>
+      </div>
+
+      <!-- Right Column - Information -->
+      <div style="flex: 1; background: rgba(255, 255, 255, 0.95); border-radius: 1mm; padding: 1.5mm; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden;">
+        <!-- Name -->
+        <div style="font-size: 3mm; font-weight: bold; color: #1e293b; margin-bottom: 1mm; line-height: 1.1; text-transform: uppercase; border-bottom: 0.3mm solid #fbbf24; padding-bottom: 0.8mm; font-family: Arial Black, sans-serif; flex-shrink: 0; word-wrap: break-word;">
+          ${profile.full_name || 'N/A'}
+        </div>
+
+        <!-- Status & Gender -->
+        <div style="display: flex; gap: 1mm; margin-bottom: 1.2mm; flex-shrink: 0;">
+          <div style="background: ${profile.status === 'approved' ? '#22c55e' : profile.status === 'pending' ? '#f59e0b' : profile.status === 'rejected' ? '#ef4444' : '#94a3b8'}; color: #ffffff; padding: 0.5mm 1mm; border-radius: 0.3mm; font-size: 1.2mm; font-weight: bold;">
+            ${profile.status === 'approved' ? 'ACTIVE' : profile.status?.toUpperCase() || 'PENDING'}
+          </div>
+          <div style="background: #e0f2fe; color: #0c4a6e; padding: 0.5mm 1mm; border-radius: 0.3mm; font-size: 1.2mm; font-weight: bold;">
+            ${profile.gender || 'N/A'}
+          </div>
+        </div>
+
+        <!-- Personal Info -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 0.6mm; overflow-y: auto;">
+          <!-- Birthday -->
+          <div style="display: flex; align-items: flex-start;">
+            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Birthday:</span>
+            <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1;">
+              ${profile.birthday ? 
+                new Date(profile.birthday).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric',
+                  year: 'numeric' 
+                }).toUpperCase() : 'N/A'
+              }
+            </span>
+          </div>
+
+          <!-- Contact -->
+          <div style="display: flex; align-items: flex-start;">
+            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Contact:</span>
+            <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1;">
+              ${profile.contact_number || 'N/A'}
+            </span>
+          </div>
+
+          <!-- Address -->
+          <div style="display: flex; align-items: flex-start;">
+            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Address:</span>
+            <span style="color: #1e293b; font-weight: 600; font-size: 1.3mm; line-height: 1.2; word-wrap: break-word; flex: 1;">
+              ${profile.address || 'N/A'}
+            </span>
+          </div>
+
+          <!-- Youth Organization if exists -->
+          ${profile.youth_organization ? `
+            <div style="display: flex; align-items: flex-start;">
+              <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Organization:</span>
+              <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1;">
+                ${profile.youth_organization}
+              </span>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Signature Section -->
+        <div style="margin-top: auto; padding-top: 1mm; border-top: 0.2mm dashed #cbd5e1; flex-shrink: 0;">
+          <div style="text-align: center;">
+            <div style="font-size: 0.9mm; color: #64748b; font-weight: bold; margin-bottom: 0.5mm;">AUTHORIZED SIGNATURE</div>
+            <div style="width: 70%; margin: 0 auto; border-bottom: 0.2mm solid #1e293b; height: 1.5mm; margin-bottom: 0.3mm;"></div>
+            <div style="font-size: 0.8mm; color: #64748b; font-style: italic;">Barangay Chairman</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+const createBackContentHTML = (profile) => {
+  return `
+    <div style="height: 100%; display: flex; flex-direction: column;">
+      <div style="background: rgba(255, 255, 255, 0.95); border-radius: 1mm; padding: 2mm; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.15); flex: 1; display: flex; flex-direction: column;">
+        <div style="font-size: 1.8mm; font-weight: bold; color: #dc2626; margin-bottom: 1.5mm; text-align: center; padding-bottom: 0.8mm; border-bottom: 0.2mm solid #ef4444; font-family: Arial Black, sans-serif;">
+          PLEASE CONTACT
+        </div>
+
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 1mm;">
+          <!-- Contact Person -->
+          <div>
+            <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Contact Person</div>
+            <div style="font-size: 1.4mm; font-weight: 600; color: #475569; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; text-align: center; word-wrap: break-word; line-height: 1.2;">
+              ${profile.emergency_contact_name || 'N/A'}
+            </div>
+          </div>
+
+          <!-- Relationship -->
+          <div>
+            <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Relationship</div>
+            <div style="font-size: 1.4mm; font-weight: 600; color: #475569; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; text-align: center; word-wrap: break-word; line-height: 1.2;">
+              ${profile.emergency_contact_relationship || 'N/A'}
+            </div>
+          </div>
+
+          <!-- Contact Number -->
+          <div>
+            <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Contact Number</div>
+            <div style="font-size: 1.5mm; font-weight: bold; color: #dc2626; padding: 0.8mm; background: #fee2e2; border-radius: 0.5mm; border: 0.2mm solid #ef4444; font-family: 'Courier New', monospace; text-align: center; word-wrap: break-word; line-height: 1.2;">
+              ${profile.emergency_contact_number || 'N/A'}
+            </div>
+          </div>
+
+          <!-- Address -->
+          <div>
+            <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Address</div>
+            <div style="font-size: 1.3mm; font-weight: 600; color: #334155; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; line-height: 1.2; word-wrap: break-word; max-height: 10mm; overflow: hidden;">
+              ${profile.emergency_contact_address || 'N/A'}
+            </div>
+          </div>
+        </div>
+
+        <!-- Warning Notice -->
+        <div style="margin-top: 1.5mm; padding: 0.8mm; background: #fef3c7; border-radius: 0.5mm; border: 0.2mm solid #fbbf24; text-align: center;">
+          <div style="font-size: 0.9mm; color: #92400e; font-weight: bold; line-height: 1.2;">
+            If found, please contact emergency person above or return to Barangay Hall.
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+};
+const handleDownloadPDF = async () => {
+  setPrinting(true);
+  try {
+    if (!selectedIDProfile) {
+      toast.error('No profile selected for download');
+      return;
+    }
+
+    // Function to create canvas for a side
+    const createSideCanvas = async (side) => {
+      // Create a temporary container
+      const container = document.createElement('div');
+      container.id = `temp-pdf-${side}-${Date.now()}`;
+      
+      // Get HTML content
+      const htmlContent = side === 'front' 
+        ? createFixedIDCardHTML('front') 
+        : createFixedIDCardHTML('back');
+      
+      // Set container styles
+      container.innerHTML = htmlContent;
+      container.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 85.6mm !important;
+        height: 54mm !important;
+        background: white !important;
+        z-index: 99999 !important;
+        visibility: visible !important;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+      `;
+      
+      document.body.appendChild(container);
+      
+      // Wait for rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      try {
+        // Use html2canvas with proper settings
+        const canvas = await html2canvas(container, {
+          scale: 3,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: true,
+          width: container.offsetWidth,
+          height: container.offsetHeight,
+          allowTaint: true,
+          foreignObjectRendering: false,
+          imageTimeout: 5000,
+          onclone: (clonedDoc, clonedElement) => {
+            // Fix image URLs to be absolute
+            const images = clonedElement.querySelectorAll('img');
+            images.forEach(img => {
+              if (img.src && !img.src.startsWith('data:')) {
+                // Make relative URLs absolute
+                if (img.src.startsWith('/')) {
+                  img.src = window.location.origin + img.src;
+                }
+                // Add cache busting
+                img.src = img.src + (img.src.includes('?') ? '&' : '?') + 't=' + Date.now();
+                img.crossOrigin = 'anonymous';
+                
+                // Set onerror handler
+                img.onerror = function() {
+                  console.warn('Failed to load image for PDF:', this.src);
+                  // Use placeholder if image fails
+                  this.src = 'data:image/svg+xml;base64,' + btoa(`
+                    <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+                      <rect width="200" height="200" fill="#e0f2fe"/>
+                      <circle cx="100" cy="80" r="40" fill="#94a3b8"/>
+                      <rect x="60" y="130" width="80" height="40" rx="5" fill="#94a3b8"/>
+                    </svg>
+                  `);
+                };
+              }
+            });
+          }
+        });
+        
+        // Clean up
+        document.body.removeChild(container);
+        
+        return canvas;
+      } catch (canvasError) {
+        // Clean up on error
+        if (document.body.contains(container)) {
+          document.body.removeChild(container);
+        }
+        throw canvasError;
+      }
+    };
+
+    // Create canvases for both sides
+    console.log('Creating front side canvas...');
+    const frontCanvas = await createSideCanvas('front');
+    console.log('Front canvas created:', frontCanvas);
+    
+    console.log('Creating back side canvas...');
+    const backCanvas = await createSideCanvas('back');
+    console.log('Back canvas created:', backCanvas);
+
+    // Create PDF
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: [85.6, 54]
+    });
+
+    // Convert canvases to data URLs
+    console.log('Converting canvases to data URLs...');
+    const frontDataUrl = frontCanvas.toDataURL('image/jpeg', 0.95);
+    const backDataUrl = backCanvas.toDataURL('image/jpeg', 0.95);
+
+    // Add images to PDF
+    console.log('Adding images to PDF...');
+    pdf.addImage(frontDataUrl, 'JPEG', 0, 0, 85.6, 54, undefined, 'FAST');
+    pdf.addPage([85.6, 54], 'landscape');
+    pdf.addImage(backDataUrl, 'JPEG', 0, 0, 85.6, 54, undefined, 'FAST');
+
+    // Save PDF
+    const sanitizedName = selectedIDProfile.full_name.replace(/[^a-zA-Z0-9]/g, '_');
+    const fileName = `KKID_${selectedIDProfile.kkid_number || selectedIDProfile.id}_${sanitizedName}.pdf`;
+    
+    console.log('Saving PDF:', fileName);
+    pdf.save(fileName);
+
+    toast.success('PDF downloaded successfully!');
+
+  } catch (error) {
+    console.error('PDF download error details:', error);
+    
+    // Fallback: Create a text-only PDF
+    try {
+      console.log('Attempting fallback PDF creation...');
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Add metadata
+      pdf.setProperties({
+        title: `KKID - ${selectedIDProfile.full_name}`,
+        subject: 'Katipunan ng Kabataan ID Card',
+        author: 'Barangay System',
+        keywords: 'kkid, id, barangay',
+        creator: 'KKID System'
+      });
+
+      // Title
+      pdf.setFontSize(20);
+      pdf.setTextColor(30, 58, 138);
+      pdf.text('KKID ID CARD', 105, 30, { align: 'center' });
+
+      // Profile info section
+      pdf.setFontSize(12);
+      pdf.setTextColor(0, 0, 0);
+      
+      const infoLines = [
+        `NAME: ${selectedIDProfile.full_name}`,
+        `KKID NUMBER: ${selectedIDProfile.kkid_number}`,
+        `BIRTHDAY: ${selectedIDProfile.birthday ? new Date(selectedIDProfile.birthday).toLocaleDateString() : 'N/A'}`,
+        `GENDER: ${selectedIDProfile.gender || 'N/A'}`,
+        `ADDRESS: ${selectedIDProfile.address || 'N/A'}`,
+        `CONTACT: ${selectedIDProfile.contact_number || 'N/A'}`,
+        `EMAIL: ${selectedIDProfile.email || 'N/A'}`,
+        `STATUS: ${selectedIDProfile.status?.toUpperCase() || 'PENDING'}`,
+        `VALIDITY: ${selectedIDProfile.validity_date ? new Date(selectedIDProfile.validity_date).toLocaleDateString() : 'N/A'}`,
+        '',
+        '--- EMERGENCY CONTACT ---',
+        `CONTACT PERSON: ${selectedIDProfile.emergency_contact_name || 'N/A'}`,
+        `RELATIONSHIP: ${selectedIDProfile.emergency_contact_relationship || 'N/A'}`,
+        `CONTACT NUMBER: ${selectedIDProfile.emergency_contact_number || 'N/A'}`,
+        `ADDRESS: ${selectedIDProfile.emergency_contact_address || 'N/A'}`
+      ];
+
+      // Add lines with proper formatting
+      let yPos = 50;
+      infoLines.forEach(line => {
+        if (line.length > 80) {
+          // Split long lines
+          const parts = [];
+          for (let i = 0; i < line.length; i += 80) {
+            parts.push(line.substring(i, i + 80));
+          }
+          parts.forEach(part => {
+            pdf.text(part, 20, yPos);
+            yPos += 7;
+          });
+        } else {
+          pdf.text(line, 20, yPos);
+          yPos += 7;
+        }
+      });
+
+      // Add QR Code placeholder
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text('Scan QR Code for Digital Verification', 105, yPos, { align: 'center' });
+      
+      // Add rectangle for QR code
+      pdf.setDrawColor(200, 200, 200);
+      pdf.rect(80, yPos + 5, 50, 50);
+      pdf.text('[QR Code Placeholder]', 105, yPos + 30, { align: 'center' });
+
+      // Add footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 280, { align: 'center' });
+      pdf.text('Official KKID Document - Do not duplicate without authorization', 105, 285, { align: 'center' });
+
+      const fileName = `KKID_${selectedIDProfile.kkid_number || selectedIDProfile.id}_document.pdf`;
+      pdf.save(fileName);
+      
+      toast.success('PDF downloaded (document version)!');
+      
+    } catch (fallbackError) {
+      console.error('Fallback PDF error:', fallbackError);
+      toast.error('Failed to generate PDF. Please try downloading PNG files instead.');
+    }
+  } finally {
+    setPrinting(false);
+  }
+};
+
+const handleDownloadPNG = async (downloadBothSides = false) => {
+  setPrinting(true);
+  try {
+    if (!selectedIDProfile) {
+      toast.error('No profile selected for download');
+      return;
+    }
+
+    // Function to create and download a single side
+    const downloadSide = async (side) => {
+      // Create a temporary div for capturing
+      const tempDiv = document.createElement('div');
+      tempDiv.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 85.6mm;
+        height: 54mm;
+        visibility: hidden;
+        z-index: -9999;
+      `;
+      
+      // Get the HTML content
+      const htmlContent = side === 'front' ? createFixedIDCardHTML('front') : createFixedIDCardHTML('back');
+      
+      // Create a temporary iframe for better rendering
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 85.6mm;
+        height: 54mm;
+        border: none;
+        visibility: hidden;
+        z-index: -9999;
+      `;
+      
+      document.body.appendChild(iframe);
+      
+      // Write HTML content to iframe
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              width: 85.6mm;
+              height: 54mm;
+              margin: 0;
+              padding: 0;
+              background: white;
+              overflow: hidden;
+            }
+            img {
+              max-width: 100%;
+              height: auto;
+            }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+        </body>
+        </html>
+      `);
+      iframe.contentDocument.close();
+      
+      // Wait for iframe to load
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Capture from iframe
+      const canvas = await html2canvas(iframe.contentDocument.body, {
+        scale: 4,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 85.6 * 3.78,
+        height: 54 * 3.78,
+        allowTaint: true,
+        foreignObjectRendering: true,
+        imageTimeout: 10000,
+        onclone: (clonedDoc) => {
+          // Force images to load
+          const images = clonedDoc.querySelectorAll('img');
+          images.forEach(img => {
+            if (img.src) {
+              img.crossOrigin = 'anonymous';
+              const src = img.src;
+              img.src = '';
+              img.src = src;
+            }
+          });
+        }
+      });
+      
+      // Clean up
+      document.body.removeChild(iframe);
+      
+      return canvas;
+    };
+
+    if (downloadBothSides) {
+      // Download both sides as separate files
+      const frontCanvas = await downloadSide('front');
+      const backCanvas = await downloadSide('back');
+      
+      // Create download link for front
+      const frontLink = document.createElement('a');
+      frontLink.download = `KKID-${selectedIDProfile.kkid_number || selectedIDProfile.id}-FRONT.png`;
+      frontLink.href = frontCanvas.toDataURL('image/png', 1.0);
+      document.body.appendChild(frontLink);
+      frontLink.click();
+      document.body.removeChild(frontLink);
+      
+      // Small delay before downloading second file
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Create download link for back
+      const backLink = document.createElement('a');
+      backLink.download = `KKID-${selectedIDProfile.kkid_number || selectedIDProfile.id}-BACK.png`;
+      backLink.href = backCanvas.toDataURL('image/png', 1.0);
+      document.body.appendChild(backLink);
+      backLink.click();
+      document.body.removeChild(backLink);
+      
+      toast.success('Both sides downloaded as PNG files!');
+    } else {
+      // Download current side only
+      const side = showCardBack ? 'back' : 'front';
+      const canvas = await downloadSide(side);
+      
+      const link = document.createElement('a');
+      link.download = `KKID-${selectedIDProfile.kkid_number || selectedIDProfile.id}-${side.toUpperCase()}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success(`${side.toUpperCase()} side downloaded as PNG!`);
+    }
+    
+  } catch (error) {
+    console.error('PNG download error:', error);
+    toast.error('Failed to download PNG. Please try again.');
+  } finally {
+    setPrinting(false);
+  }
+};
+
+  const renderPhotoUpload = () => (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        ID Photo (2x2 inches)
+      </label>
+      
+      <div className="flex items-center gap-4">
+        <div className="relative w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+          {photoPreview ? (
+            <img 
+              src={photoPreview} 
+              alt="Photo preview" 
+              className="w-full h-full object-cover"
+            />
           ) : (
-            <Printer className="h-4 w-4 mr-2" />
+            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+              <Camera className="h-8 w-8 mb-2" />
+              <span className="text-xs">No photo</span>
+            </div>
           )}
-          Print ID Card
-        </Button>
+        </div>
         
-        <Button
-          onClick={handleDownloadPDF}
-          disabled={printing}
-          variant="outline"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Download PDF
-        </Button>
-        
-        <Button
-          onClick={handleDownloadImage}
-          disabled={printing}
-          variant="outline"
-        >
-          <Camera className="h-4 w-4 mr-2" />
-          Save as Image
-        </Button>
+        <div className="flex-1">
+          <input
+            type="file"
+            ref={photoInputRef}
+            onChange={handlePhotoUpload}
+            accept="image/*"
+            className="hidden"
+          />
+          <Button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            variant="outline"
+            className="w-full"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {photoPreview ? 'Change Photo' : 'Upload Photo'}
+          </Button>
+          <p className="text-xs text-gray-500 mt-2">
+            Upload a 2x2 inch photo. Max 5MB.
+          </p>
+        </div>
       </div>
     </div>
   );
 
-  // Form rendering function
   const renderForm = () => (
     <form onSubmit={editingProfile ? handleUpdateProfile : handleAddProfile} className="p-6 space-y-4">
+      {renderPhotoUpload()}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Full Name *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
           <Input
             type="text"
             value={formData.full_name}
@@ -679,9 +1198,7 @@ const handlePrintID = async () => {
           />
         </div>
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Birthday *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Birthday *</label>
           <Input
             type="date"
             value={formData.birthday}
@@ -693,16 +1210,9 @@ const handlePrintID = async () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Gender *
-          </label>
-          <Select
-            value={formData.gender}
-            onValueChange={(value) => handleInputChange("gender", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select gender" />
-            </SelectTrigger>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Gender *</label>
+          <Select value={formData.gender} onValueChange={(value) => handleInputChange("gender", value)}>
+            <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="Male">Male</SelectItem>
               <SelectItem value="Female">Female</SelectItem>
@@ -711,16 +1221,9 @@ const handlePrintID = async () => {
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Civil Status *
-          </label>
-          <Select
-            value={formData.civil_status}
-            onValueChange={(value) => handleInputChange("civil_status", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select civil status" />
-            </SelectTrigger>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Civil Status *</label>
+          <Select value={formData.civil_status} onValueChange={(value) => handleInputChange("civil_status", value)}>
+            <SelectTrigger><SelectValue placeholder="Select civil status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="Single">Single</SelectItem>
               <SelectItem value="Married">Married</SelectItem>
@@ -732,9 +1235,7 @@ const handlePrintID = async () => {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Complete Address *
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Complete Address *</label>
         <Textarea
           value={formData.address}
           onChange={(e) => handleInputChange("address", e.target.value)}
@@ -746,9 +1247,7 @@ const handlePrintID = async () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Contact Number *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Contact Number *</label>
           <Input
             value={formData.contact_number}
             onChange={(e) => handleInputChange("contact_number", e.target.value)}
@@ -757,9 +1256,7 @@ const handlePrintID = async () => {
           />
         </div>
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Email
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
           <Input
             type="email"
             value={formData.email}
@@ -771,20 +1268,17 @@ const handlePrintID = async () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            KKID Number *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">KKID Number *</label>
           <Input
             value={formData.kkid_number}
             onChange={(e) => handleInputChange("kkid_number", e.target.value)}
             required
-            placeholder="Enter KKID number"
+            readOnly={!editingProfile}
+            className="bg-gray-50"
           />
         </div>
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Validity Date *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Validity Date *</label>
           <Input
             type="date"
             value={formData.validity_date}
@@ -795,9 +1289,7 @@ const handlePrintID = async () => {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Youth Organization
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Youth Organization</label>
         <Input
           value={formData.youth_organization}
           onChange={(e) => handleInputChange("youth_organization", e.target.value)}
@@ -806,9 +1298,7 @@ const handlePrintID = async () => {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Facebook Account
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Facebook Account</label>
         <Input
           value={formData.facebook_account}
           onChange={(e) => handleInputChange("facebook_account", e.target.value)}
@@ -816,14 +1306,11 @@ const handlePrintID = async () => {
         />
       </div>
 
-      {/* Emergency Contact Fields */}
       <div className="border-t pt-4 mt-4">
         <h3 className="text-lg font-semibold mb-4">Emergency Contact Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Emergency Contact Name *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact Name *</label>
             <Input
               value={formData.emergency_contact_name}
               onChange={(e) => handleInputChange("emergency_contact_name", e.target.value)}
@@ -832,16 +1319,9 @@ const handlePrintID = async () => {
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Relationship *
-            </label>
-            <Select
-              value={formData.emergency_contact_relationship}
-              onValueChange={(value) => handleInputChange("emergency_contact_relationship", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select relationship" />
-              </SelectTrigger>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Relationship *</label>
+            <Select value={formData.emergency_contact_relationship} onValueChange={(value) => handleInputChange("emergency_contact_relationship", value)}>
+              <SelectTrigger><SelectValue placeholder="Select relationship" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Father">Father</SelectItem>
                 <SelectItem value="Mother">Mother</SelectItem>
@@ -857,9 +1337,7 @@ const handlePrintID = async () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Emergency Contact Birthday *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact Birthday *</label>
             <Input
               type="date"
               value={formData.emergency_contact_birthday}
@@ -868,9 +1346,7 @@ const handlePrintID = async () => {
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Emergency Contact Number *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact Number *</label>
             <Input
               value={formData.emergency_contact_number}
               onChange={(e) => handleInputChange("emergency_contact_number", e.target.value)}
@@ -881,9 +1357,7 @@ const handlePrintID = async () => {
         </div>
 
         <div className="space-y-2 mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Emergency Contact Address *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact Address *</label>
           <Textarea
             value={formData.emergency_contact_address}
             onChange={(e) => handleInputChange("emergency_contact_address", e.target.value)}
@@ -901,15 +1375,11 @@ const handlePrintID = async () => {
             checked={formData.is_voter}
             onCheckedChange={(checked) => handleInputChange("is_voter", checked)}
           />
-          <label htmlFor="is_voter" className="text-sm font-medium text-gray-700">
-            Registered Voter
-          </label>
+          <label htmlFor="is_voter" className="text-sm font-medium text-gray-700">Registered Voter</label>
         </div>
         {formData.is_voter && (
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Precinct Number
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Precinct Number</label>
             <Input
               value={formData.precinct_number}
               onChange={(e) => handleInputChange("precinct_number", e.target.value)}
@@ -920,16 +1390,9 @@ const handlePrintID = async () => {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Status
-        </label>
-        <Select
-          value={formData.status}
-          onValueChange={(value) => handleInputChange("status", value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select status" />
-          </SelectTrigger>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+        <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+          <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
@@ -955,7 +1418,11 @@ const handlePrintID = async () => {
         </button>
         <button
           type="button"
-          onClick={() => setShowForm(false)}
+          onClick={() => {
+            setShowForm(false);
+            setEditingProfile(null);
+            resetForm();
+          }}
           disabled={submitting}
           className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -967,10 +1434,6 @@ const handlePrintID = async () => {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* Add the print styles as a style tag */}
-      <style>{printStyles}</style>
-      
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center space-x-2">
@@ -996,7 +1459,6 @@ const handlePrintID = async () => {
         </Button>
       </div>
 
-      {/* Search and Filters */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -1021,7 +1483,6 @@ const handlePrintID = async () => {
         </Select>
       </div>
 
-      {/* Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
@@ -1049,7 +1510,6 @@ const handlePrintID = async () => {
         </Card>
       </div>
 
-      {/* Loading State */}
       {loading && (
         <div className="text-center py-12">
           <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
@@ -1057,16 +1517,15 @@ const handlePrintID = async () => {
         </div>
       )}
 
-      {/* KKID Profiles Grid */}
       {!loading && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {profiles.map((profile) => (
-              <Card key={profile.id} className="hover:shadow-lg transition-all duration-300 group">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg group-hover:text-primary transition-colors line-clamp-2">
+              <Card key={profile.id} className="hover:shadow-lg transition-all duration-300 group h-full flex flex-col">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <CardTitle className="text-lg group-hover:text-primary transition-colors line-clamp-1">
                         {profile.full_name}
                       </CardTitle>
                       <Badge className={getStatusColor(profile.status)}>
@@ -1074,7 +1533,7 @@ const handlePrintID = async () => {
                       </Badge>
                     </div>
                     
-                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -1086,7 +1545,7 @@ const handlePrintID = async () => {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-8 w-8 text-red-600"
+                        className="h-8 w-8 text-red-600 hover:text-red-700"
                         onClick={() => handleDeleteProfile(profile.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1094,32 +1553,34 @@ const handlePrintID = async () => {
                     </div>
                   </div>
                   
-                  <CardDescription className="flex items-center space-x-2 text-sm">
-                    <Calendar className="h-4 w-4" />
-                    <span>{profile.birthday ? new Date(profile.birthday).toLocaleDateString() : 'N/A'}</span>
+                  <CardDescription className="flex items-center flex-wrap gap-2 text-sm mt-2">
+                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">
+                      {profile.birthday ? new Date(profile.birthday).toLocaleDateString() : 'N/A'}
+                    </span>
                     <span>•</span>
-                    <span>{profile.gender || 'N/A'}</span>
+                    <span className="truncate">{profile.gender || 'N/A'}</span>
                   </CardDescription>
                 </CardHeader>
                 
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">KKID:</span>
-                      <span>{profile.kkid_number || 'N/A'}</span>
+                      <Badge variant="outline" className="font-mono truncate max-w-[200px]">
+                        ID: {profile.kkid_number || 'N/A'}
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span>{profile.contact_number || 'N/A'}</span>
+                      <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{profile.contact_number || 'N/A'}</span>
                     </div>
                     <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <span className="line-clamp-2">{profile.address || 'N/A'}</span>
+                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                      <span className="line-clamp-2 break-words">{profile.address || 'N/A'}</span>
                     </div>
                     {profile.email && (
                       <div className="flex items-center gap-2 text-sm">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <span className="truncate">{profile.email}</span>
                       </div>
                     )}
@@ -1127,13 +1588,13 @@ const handlePrintID = async () => {
 
                   {profile.youth_organization && (
                     <div className="flex flex-wrap gap-1">
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-xs max-w-full truncate">
                         {profile.youth_organization}
                       </Badge>
                     </div>
                   )}
                   
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-auto pt-2">
                     <Button 
                       variant="outline" 
                       className="flex-1"
@@ -1157,7 +1618,7 @@ const handlePrintID = async () => {
           </div>
 
           {profiles.length === 0 && (
-            <div className="text-center py-12">
+            <div className="text-center py-12 border rounded-lg bg-gray-50">
               <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No KKID profiles found</h3>
               <p className="text-muted-foreground">
@@ -1170,34 +1631,36 @@ const handlePrintID = async () => {
         </>
       )}
 
-      {/* Add/Edit Profile Form Modal */}
+      {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-4xl w-full my-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-2xl font-bold">
                 {editingProfile ? 'Edit KKID Profile' : 'Add New KKID Profile'}
               </h2>
               <button
-                onClick={() => setShowForm(false)}
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingProfile(null);
+                  resetForm();
+                }}
                 className="text-gray-500 hover:text-gray-700"
-                disabled={submitting}
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
-            
             {renderForm()}
           </div>
         </div>
       )}
 
-      {/* View Profile Details Modal */}
+      {/* View Details Modal */}
       {showViewModal && selectedProfile && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-2xl font-bold text-gray-900">{selectedProfile.full_name}</h2>
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-2xl font-bold">Profile Details</h2>
               <button
                 onClick={() => setShowViewModal(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -1205,362 +1668,197 @@ const handlePrintID = async () => {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            
             <div className="p-6 space-y-6">
-              {/* Header Info */}
-              <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  <span>Birthday: {selectedProfile.birthday ? new Date(selectedProfile.birthday).toLocaleDateString() : 'N/A'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <span>Gender: {selectedProfile.gender || 'N/A'}</span>
-                </div>
-                <Badge className={getStatusColor(selectedProfile.status)}>
-                  {getStatusText(selectedProfile.status)}
-                </Badge>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  <span>Applied: {selectedProfile.application_date ? new Date(selectedProfile.application_date).toLocaleDateString() : 'N/A'}</span>
-                </div>
-              </div>
-
-              {/* Personal Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Personal Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="font-medium">KKID Number:</span>
-                      <span>{selectedProfile.kkid_number || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Civil Status:</span>
-                      <span>{selectedProfile.civil_status || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Contact:</span>
-                      <span>{selectedProfile.contact_number || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Email:</span>
-                      <span>{selectedProfile.email || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Facebook:</span>
-                      <span>{selectedProfile.facebook_account || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Youth Org:</span>
-                      <span>{selectedProfile.youth_organization || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Registered Voter:</span>
-                      <span>{selectedProfile.is_voter ? 'Yes' : 'No'}</span>
-                    </div>
-                    {selectedProfile.is_voter && selectedProfile.precinct_number && (
-                      <div className="flex justify-between">
-                        <span className="font-medium">Precinct Number:</span>
-                        <span>{selectedProfile.precinct_number}</span>
-                      </div>
-                    )}
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                  <div className="space-y-1">
+                    <p><span className="font-medium">Full Name:</span> {selectedProfile.full_name}</p>
+                    <p><span className="font-medium">Birthday:</span> {selectedProfile.birthday ? new Date(selectedProfile.birthday).toLocaleDateString() : 'N/A'}</p>
+                    <p><span className="font-medium">Gender:</span> {selectedProfile.gender || 'N/A'}</p>
+                    <p><span className="font-medium">Civil Status:</span> {selectedProfile.civil_status || 'N/A'}</p>
+                    <p><span className="font-medium">Contact:</span> {selectedProfile.contact_number || 'N/A'}</p>
+                    <p><span className="font-medium">Email:</span> {selectedProfile.email || 'N/A'}</p>
                   </div>
                 </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Emergency Contact</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="font-medium">Name:</span>
-                      <span>{selectedProfile.emergency_contact_name || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Relationship:</span>
-                      <span>{selectedProfile.emergency_contact_relationship || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Contact Number:</span>
-                      <span>{selectedProfile.emergency_contact_number || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Birthday:</span>
-                      <span>{selectedProfile.emergency_contact_birthday ? new Date(selectedProfile.emergency_contact_birthday).toLocaleDateString() : 'N/A'}</span>
-                    </div>
+                
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-gray-900">ID Information</h3>
+                  <div className="space-y-1">
+                    <p><span className="font-medium">KKID Number:</span> {selectedProfile.kkid_number}</p>
+                    <p><span className="font-medium">Validity Date:</span> {selectedProfile.validity_date ? new Date(selectedProfile.validity_date).toLocaleDateString() : 'N/A'}</p>
+                    <p><span className="font-medium">Status:</span> <Badge className={getStatusColor(selectedProfile.status)}>{getStatusText(selectedProfile.status)}</Badge></p>
+                    <p><span className="font-medium">Youth Organization:</span> {selectedProfile.youth_organization || 'N/A'}</p>
+                    <p><span className="font-medium">Facebook:</span> {selectedProfile.facebook_account || 'N/A'}</p>
                   </div>
                 </div>
               </div>
-
-              {/* Address */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Address</h3>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900">Address</h3>
                 <p className="text-gray-700">{selectedProfile.address || 'N/A'}</p>
               </div>
-
-              {/* Emergency Contact Address */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Emergency Contact Address</h3>
-                <p className="text-gray-700">{selectedProfile.emergency_contact_address || 'N/A'}</p>
-              </div>
-
-              {/* Validity */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900">Emergency Contact</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <h4 className="font-semibold text-blue-800">KKID Validity</h4>
-                    <p className="text-blue-700">Valid until: {selectedProfile.validity_date ? new Date(selectedProfile.validity_date).toLocaleDateString() : 'N/A'}</p>
+                    <p><span className="font-medium">Name:</span> {selectedProfile.emergency_contact_name || 'N/A'}</p>
+                    <p><span className="font-medium">Relationship:</span> {selectedProfile.emergency_contact_relationship || 'N/A'}</p>
+                    <p><span className="font-medium">Birthday:</span> {selectedProfile.emergency_contact_birthday ? new Date(selectedProfile.emergency_contact_birthday).toLocaleDateString() : 'N/A'}</p>
                   </div>
-                  {selectedProfile.approved_date && (
-                    <div className="text-right">
-                      <p className="text-sm text-blue-600">Approved on: {new Date(selectedProfile.approved_date).toLocaleDateString()}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4 pt-6 border-t">
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    setShowViewModal(false);
-                    handleEditProfile(selectedProfile);
-                  }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                >
-                  <Edit className="mr-2 h-4 w-4 inline" />
-                  Edit Profile
-                </button>
-                <button
-                  onClick={() => {
-                    setShowViewModal(false);
-                    handleViewID(selectedProfile);
-                  }}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                >
-                  <Printer className="mr-2 h-4 w-4 inline" />
-                  View ID Card
-                </button>
-                <select 
-                  value={selectedProfile.status}
-                  onChange={(e) => handleStatusChange(selectedProfile.id, e.target.value)}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors border-none cursor-pointer text-center"
-                >
-                  <option value="pending">Mark as Pending</option>
-                  <option value="approved">Approve</option>
-                  <option value="rejected">Reject</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-{/* ID Card Modal */}
-{showIDModal && selectedIDProfile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-2xl font-bold text-gray-900">
-                KKID Card - {selectedIDProfile.full_name}
-              </h2>
-              <button
-                onClick={() => setShowIDModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-                disabled={printing}
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            
-            {/* ID Card Display Section */}
-            <div className="bg-white p-8 flex flex-col items-center">
-              <div 
-                id="id-card-template"
-                className="w-[345px] h-[217px] bg-gradient-to-br from-blue-50 to-white border-4 border-blue-600 rounded-2xl shadow-2xl relative overflow-hidden"
-                style={{
-                  WebkitPrintColorAdjust: 'exact',
-                  printColorAdjust: 'exact'
-                }}
-              >
-          {/* ID Card Design */}
-          <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
-          <div className="absolute bottom-0 left-0 w-full h-2 bg-blue-600"></div>
-          
-          {/* Background Pattern */}
-          <div className="absolute inset-0 opacity-5">
-            <div className="absolute top-4 right-4 text-6xl font-bold text-blue-400">KKID</div>
-            <div className="absolute bottom-4 left-4 text-4xl font-bold text-blue-300 rotate-12">YOUTH</div>
-          </div>
-          
-          <div className="p-4 h-full flex">
-            {/* Left Section - Logo and Main Info */}
-            <div className="w-1/3 pr-3 border-r border-blue-200">
-              <div className="mb-3">
-                <div className="text-center">
-                  <div className="inline-block p-2 bg-blue-600 rounded-lg">
-                    <User className="h-8 w-8 text-white" />
-                  </div>
-                </div>
-                <div className="mt-2 text-center">
-                  <div className="text-xs text-gray-500">KKID No.</div>
-                  <div className="font-bold text-sm text-blue-700">{selectedIDProfile.kkid_number}</div>
-                </div>
-              </div>
-              
-              <div className="mt-4">
-                <div className="relative w-24 h-24 mx-auto border-2 border-blue-500 rounded-lg bg-gray-100 overflow-hidden">
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-gray-100">
-                    <Camera className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <div className="absolute bottom-0 w-full bg-blue-600 text-white text-xs py-1 text-center">
-                    PHOTO
+                  <div>
+                    <p><span className="font-medium">Contact Number:</span> {selectedProfile.emergency_contact_number || 'N/A'}</p>
+                    <p><span className="font-medium">Address:</span> {selectedProfile.emergency_contact_address || 'N/A'}</p>
                   </div>
                 </div>
               </div>
               
-              <div className="mt-2 text-center">
-                <div className="text-xs text-gray-500">Valid Until</div>
-                <div className="font-bold text-xs text-red-600">
-                  {new Date(selectedIDProfile.validity_date).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: '2-digit',
-                    year: 'numeric' 
-                  })}
-                </div>
-              </div>
-            </div>
-            
-            {/* Right Section - Personal Details */}
-            <div className="w-2/3 pl-3">
-              <div className="mb-2">
-                <h2 className="font-bold text-lg truncate">{selectedIDProfile.full_name}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge className="bg-green-100 text-green-800 text-xs">
-                    {selectedIDProfile.status === 'approved' ? 'ACTIVE' : selectedIDProfile.status.toUpperCase()}
-                  </Badge>
-                  <span className="text-xs text-gray-600">{selectedIDProfile.gender}</span>
-                </div>
-              </div>
-              
-              <div className="space-y-1.5 text-xs">
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="text-gray-500">Birthday:</div>
-                  <div className="font-medium">
-                    {new Date(selectedIDProfile.birthday).toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: '2-digit',
-                      year: 'numeric' 
-                    })}
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="text-gray-500">Civil Status:</div>
-                  <div className="font-medium">{selectedIDProfile.civil_status}</div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="text-gray-500">Contact:</div>
-                  <div className="font-medium">{selectedIDProfile.contact_number}</div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="text-gray-500">Address:</div>
-                  <div className="font-medium truncate">{selectedIDProfile.address?.split(',')[0] || ''}</div>
-                </div>
-                
-                {selectedIDProfile.youth_organization && (
-                  <div className="grid grid-cols-2 gap-1">
-                    <div className="text-gray-500">Organization:</div>
-                    <div className="font-medium truncate">{selectedIDProfile.youth_organization}</div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="text-gray-500">Voter:</div>
-                  <div className="font-medium">{selectedIDProfile.is_voter ? 'YES' : 'NO'}</div>
-                </div>
-              </div>
-              
-              {/* Signature Section */}
-              <div className="mt-3 pt-2 border-t border-dashed border-gray-300">
-                <div className="text-center">
-                  <div className="text-xs text-gray-500">Authorized Signature</div>
-                  <div className="h-6 border-b border-gray-400 w-3/4 mx-auto"></div>
-                  <div className="text-[10px] text-gray-500 mt-1">Katipunan ng Kabataan</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Watermark */}
-          <div className="absolute bottom-1 right-2 text-[8px] text-gray-400">
-            ID: {selectedIDProfile.id?.toString().padStart(6, '0') || '000000'}
-          </div>
-        </div>
-        
-        {/* Print & Download Buttons */}
-        <div className="mt-6 flex gap-3">
-                <Button
-                  onClick={handlePrintID}
-                  disabled={printing}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {printing ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
+              <div className="pt-6 border-t">
+                <div className="flex gap-4">
+                  <Button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleEditProfile(selectedProfile);
+                    }}
+                    className="flex-1"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleViewID(selectedProfile);
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
                     <Printer className="h-4 w-4 mr-2" />
-                  )}
-                  Print ID Card
-                </Button>
-                
-                <Button
-                  onClick={handleDownloadPDF}
-                  disabled={printing}
-                  variant="outline"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </Button>
-                
-                <Button
-                  onClick={handleDownloadImage}
-                  disabled={printing}
-                  variant="outline"
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  Save as Image
-                </Button>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t bg-gray-50">
-              <div className="text-sm text-gray-600">
-                <p className="mb-2 font-medium">Printing Instructions:</p>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Use standard ID card paper (PVC recommended for durability)</li>
-                  <li>Print at 100% scale for correct dimensions</li>
-                  <li>Standard ID size: 3.375" × 2.125" (85.6 × 54 mm)</li>
-                  <li>For best results, use a color printer with high resolution</li>
-                  <li>Laminate the printed ID for water resistance</li>
-                </ul>
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                  <p className="text-blue-800 font-medium">Note:</p>
-                  <p className="text-blue-700 text-sm">This ID is only valid when signed and accompanied by an official stamp.</p>
+                    View ID Card
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to delete this profile?')) {
+                        handleDeleteProfile(selectedProfile.id);
+                        setShowViewModal(false);
+                      }
+                    }}
+                    variant="destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       )}
+
+{/* Floating ID Card Modal */}
+{showIDModal && selectedIDProfile && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      {/* Header */}
+      <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white z-10 rounded-t-xl">
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold">KKID Card - {selectedIDProfile.full_name}</h2>
+          <Badge variant={selectedIDProfile.status === 'approved' ? 'default' : 'secondary'}>
+            {selectedIDProfile.status?.toUpperCase()}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowIDModal(false)}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={printing}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Content - Fixed Height */}
+<div className="flex-1 p-6 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center min-h-[400px] max-h-[500px]">
+  {/* Card Container */}
+  <div className="relative perspective-1000" style={{ 
+    width: '85.6mm', 
+    height: '54mm',
+    margin: '0 auto'
+  }}>
+    {/* Actual Card Content */}
+    <div className={`w-full h-full transition-transform duration-500 ${showCardBack ? 'rotate-y-180' : ''}`}>
+      {/* Front Side */}
+      <div className={`absolute w-full h-full ${showCardBack ? 'opacity-0' : 'opacity-100'}`}>
+        <div dangerouslySetInnerHTML={{ __html: createFixedIDCardHTML('front') }} />
+      </div>
+      
+      {/* Back Side */}
+      <div className={`absolute w-full h-full ${showCardBack ? 'opacity-100' : 'opacity-0'}`}>
+        <div dangerouslySetInnerHTML={{ __html: createFixedIDCardHTML('back') }} />
+      </div>
+    </div>
+  </div>
+  
+  {/* Flip Hint */}
+  <div className="mt-6 text-center">
+    <Button
+      onClick={() => setShowCardBack(!showCardBack)}
+      variant="outline"
+      size="sm"
+      className="gap-2"
+    >
+      <FlipHorizontal className="h-4 w-4" />
+      Flip to {showCardBack ? 'Front' : 'Back'} Side
+    </Button>
+  </div>
+</div>
+
+      {/* Action Buttons - Always visible */}
+{/* Action Buttons - Always visible */}
+<div className="p-6 border-t bg-white rounded-b-xl">
+  <div className="flex flex-wrap gap-3 justify-center">
+    <Button
+      onClick={handlePrintBothSides}
+      disabled={printing}
+      className="bg-blue-600 hover:bg-blue-700"
+      size="lg"
+    >
+      <Printer className="h-5 w-5 mr-2" />
+      Print Both Sides
+    </Button>
+    
+    <Button
+      onClick={handleDownloadPDF}
+      disabled={printing}
+      variant="outline"
+      size="lg"
+      className="border-blue-300 hover:bg-blue-50"
+    >
+      <Download className="h-5 w-5 mr-2" />
+      Download PDF
+    </Button>
+    
+    <Button
+      onClick={() => handleDownloadPNG(true)}
+      disabled={printing}
+      variant="outline"
+      size="lg"
+      className="border-purple-300 hover:bg-purple-50"
+    >
+      <Download className="h-5 w-5 mr-2" />
+      Download Both Sides PNG
+    </Button>
+  </div>
+</div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
 
-export default AdminKKID;
+export default AdminKKID

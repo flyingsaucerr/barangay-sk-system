@@ -31,6 +31,7 @@ return new class extends Migration
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->date('application_date');
             $table->date('approved_date')->nullable();
+            $table->string('photo_url')->nullable();
             $table->timestamps();
         });
     }
