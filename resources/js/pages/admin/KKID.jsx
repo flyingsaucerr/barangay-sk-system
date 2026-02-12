@@ -955,7 +955,7 @@ const handleDownloadPDF = async () => {
           scale: 3,
           useCORS: true,
           backgroundColor: '#ffffff',
-          logging: false,
+          logging: true,
           width: container.offsetWidth,
           height: container.offsetHeight,
           allowTaint: true,
