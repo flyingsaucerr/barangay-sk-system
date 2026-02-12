@@ -373,11 +373,6 @@ const AdminKKID = () => {
   };
 
   const handleDeleteProfile = async (id) => {
-    const profile = profiles.find(p => p.id === id);
-    if (profile.status === "approved") {
-      toast.error("You cannot delete an approved ID");
-      return;
-    }
     if (!window.confirm('Are you sure you want to delete this KKID profile?')) {
       return;
     }
@@ -409,7 +404,7 @@ const AdminKKID = () => {
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: value === undefined || value === null ? '' : value
     }));
   };
 
@@ -424,11 +419,6 @@ const AdminKKID = () => {
   };
 
   const handleStatusChange = async (id, newStatus) => {
-    const profile = profiles.find(p => p.id === id);
-    if (profile.status === "approved" && newStatus === "rejected") {
-      toast.error("You cannot reject an approved ID");
-      return;
-    }
     try {
       const token = localStorage.getItem('authToken');
       const response = await fetch(`/api/kkid-profiles/${id}/status`, {
@@ -528,32 +518,6 @@ const AdminKKID = () => {
       setPrinting(false);
     }
   };
-  
-  const generateKKID = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0'); // month 01-12
-    const time = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
-    return `KK-${year}-${month}${time}`;
-  };
-
-    useEffect(() => {
-    if (showForm && !editingProfile) { // Only generate for new profiles
-      const now = new Date();
-
-      // KKID format: KK-YEAR-MONTHTIME(H:S)
-      const kkid = `KK-${now.getFullYear()}-${(now.getMonth()+1)
-        .toString()
-        .padStart(2, '0')}${now.getHours()}${now.getMinutes()}`;
-      
-      handleInputChange("kkid_number", kkid);
-
-      // Validity: 1 year from now
-      const validity = new Date();
-      validity.setFullYear(validity.getFullYear() + 1);
-      handleInputChange("validity_date", validity.toISOString().split('T')[0]);
-    }
-  }, [showForm]); 
 
   // Create fixed HTML for ID cards (for printing/downloading)
 const createFixedIDCardHTML = (side = 'front') => {
@@ -573,7 +537,6 @@ const createFixedIDCardHTML = (side = 'front') => {
     }
     return url;
   };
-
   
   let photoUrl = getImageUrl(profile.photo_url || '');
   
@@ -599,7 +562,9 @@ const createFixedIDCardHTML = (side = 'front') => {
     <div style="width: 85.6mm; height: 54mm; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border-radius: 4mm; overflow: hidden; position: relative; font-family: Arial, sans-serif;">
       <!-- Watermark -->
       <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 20mm; font-weight: 900; color: rgba(255, 255, 255, 0.08); letter-spacing: 2mm; font-family: Arial Black, sans-serif; white-space: nowrap; z-index: 1;">
-        KKID 
+        KKID
+      </div>
+      
       <!-- Header -->
       <div style="background: rgba(255, 255, 255, 0.95); padding: 1.5mm 2mm; text-align: center; border-bottom: 0.5mm solid ${isFront ? '#fbbf24' : '#ef4444'}; position: absolute; top: 0; left: 0; right: 0; height: 6mm; z-index: 2; display: flex; flex-direction: column; justify-content: center;">
         <div style="font-size: 2.5mm; font-weight: bold; color: ${isFront ? '#1e40af' : '#dc2626'}; font-family: Arial Black, sans-serif; line-height: 1.1; letter-spacing: 0.05mm;">
@@ -620,132 +585,6 @@ const createFixedIDCardHTML = (side = 'front') => {
     </div>
   `;
 };
-
-  // ID Card Layout Component
-  const IDCardLayout = ({ profile }) => (
-    <div className="bg-white p-8 flex flex-col items-center">
-      <div 
-        id="id-card-template"
-        className="w-[345px] h-[217px] bg-gradient-to-br from-blue-50 to-white border-4 border-blue-600 rounded-2xl shadow-2xl relative overflow-hidden"
-      >
-        {/* ID Card Design */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
-        <div className="absolute bottom-0 left-0 w-full h-2 bg-blue-600"></div>
-        
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-4 right-4 text-6xl font-bold text-blue-400">KKID</div>
-          <div className="absolute bottom-4 left-4 text-4xl font-bold text-blue-300 rotate-12">YOUTH</div>
-        </div>
-        
-        <div className="p-4 h-full flex">
-          {/* Left Section - Logo and Main Info */}
-          <div className="w-1/3 pr-3 border-r border-blue-200">
-            <div className="mb-3">
-              <div className="text-center">
-                <div className="inline-block p-2 bg-blue-600 rounded-lg">
-                  <User className="h-8 w-8 text-white" />
-                </div>
-              </div>
-              <div className="mt-2 text-center">
-                <div className="text-xs text-gray-500">KKID No.</div>
-                <div className="font-bold text-sm text-blue-700">{profile.kkid_number}</div>
-              </div>
-            </div>
-            
-            <div className="mt-4">
-              <div className="relative w-24 h-24 mx-auto border-2 border-blue-500 rounded-lg bg-gray-100 overflow-hidden">
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-gray-100">
-                  <Camera className="h-8 w-8 text-gray-400" />
-                </div>
-                <div className="absolute bottom-0 w-full bg-blue-600 text-white text-xs py-1 text-center">
-                  PHOTO
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-2 text-center">
-              <div className="text-xs text-gray-500">Valid Until</div>
-              <div className="font-bold text-xs text-red-600">
-                {new Date(profile.validity_date).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: '2-digit',
-                  year: 'numeric' 
-                })}
-              </div>
-            </div>
-          </div>
-          
-          {/* Right Section - Personal Details */}
-          <div className="w-2/3 pl-3">
-            <div className="mb-2">
-              <h2 className="font-bold text-lg truncate">{profile.full_name}</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge className="bg-green-100 text-green-800 text-xs">
-                  {profile.status === 'approved' ? 'ACTIVE' : profile.status.toUpperCase()}
-                </Badge>
-                <span className="text-xs text-gray-600">{profile.gender}</span>
-              </div>
-            </div>
-            
-            <div className="space-y-1.5 text-xs">
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Birthday:</div>
-                <div className="font-medium">
-                  {new Date(profile.birthday).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: '2-digit',
-                    year: 'numeric' 
-                  })}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Civil Status:</div>
-                <div className="font-medium">{profile.civil_status}</div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Contact:</div>
-                <div className="font-medium">{profile.contact_number}</div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Address:</div>
-                <div className="font-medium truncate">{profile.address.split(',')[0]}</div>
-              </div>
-              
-              {profile.youth_organization && (
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="text-gray-500">Organization:</div>
-                  <div className="font-medium truncate">{profile.youth_organization}</div>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-1">
-                <div className="text-gray-500">Voter:</div>
-                <div className="font-medium">{profile.is_voter ? 'YES' : 'NO'}</div>
-              </div>
-            </div>
-            
-            {/* Signature Section */}
-            <div className="mt-3 pt-2 border-t border-dashed border-gray-300">
-              <div className="text-center">
-                <div className="text-xs text-gray-500">Authorized Signature</div>
-                <div className="h-6 border-b border-gray-400 w-3/4 mx-auto"></div>
-                <div className="text-[10px] text-gray-500 mt-1">Katipunan ng Kabataan</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Watermark */}
-        <div className="absolute bottom-1 right-2 text-[8px] text-gray-400">
-          ID: {profile.id.toString().padStart(6, '0')}
-        </div>
-      </div>
-   </div>
-);
 
 const createFrontContentHTML = (profile, photoUrl) => {
   return `
@@ -1364,9 +1203,6 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
             value={formData.birthday}
             onChange={(e) => handleInputChange("birthday", e.target.value)}
             required
-            max={new Date(new Date().setFullYear(new Date().getFullYear() - 15))
-              .toISOString()
-              .split('T')[0]}
           />
         </div>
       </div>
@@ -1413,10 +1249,7 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
           <label className="block text-sm font-medium text-gray-700 mb-2">Contact Number *</label>
           <Input
             value={formData.contact_number}
-            onChange={(e) => {
-              const numericValue = e.target.value.replace(/\D/g, '').slice(0, 11);
-              handleInputChange("contact_number", numericValue);
-            }}
+            onChange={(e) => handleInputChange("contact_number", e.target.value)}
             required
             placeholder="Enter contact number"
           />
@@ -1437,8 +1270,10 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
           <label className="block text-sm font-medium text-gray-700 mb-2">KKID Number *</label>
           <Input
             value={formData.kkid_number}
-            readOnly
-            placeholder="KKID Number will be generated automatically"
+            onChange={(e) => handleInputChange("kkid_number", e.target.value)}
+            required
+            readOnly={!editingProfile}
+            className="bg-gray-50"
           />
         </div>
         <div className="space-y-2">
@@ -1446,7 +1281,8 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
           <Input
             type="date"
             value={formData.validity_date}
-            readOnly
+            onChange={(e) => handleInputChange("validity_date", e.target.value)}
+            required
           />
         </div>
       </div>
@@ -1482,32 +1318,21 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
             />
           </div>
           <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Relationship *
-          </label>
-          <Select
-            value={formData.emergency_contact_relationship}
-            onValueChange={(value) => handleInputChange("emergency_contact_relationship", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select relationship" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Father">Father</SelectItem>
-              <SelectItem value="Mother">Mother</SelectItem>
-              <SelectItem value="Sibling">Sibling</SelectItem>
-              {formData.civil_status === "Single" ? (
-                <SelectItem value="Live-in Partner">Live-in Partner</SelectItem>
-              ) : (
+            <label className="block text-sm font-medium text-gray-700 mb-2">Relationship *</label>
+            <Select value={formData.emergency_contact_relationship} onValueChange={(value) => handleInputChange("emergency_contact_relationship", value)}>
+              <SelectTrigger><SelectValue placeholder="Select relationship" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Father">Father</SelectItem>
+                <SelectItem value="Mother">Mother</SelectItem>
+                <SelectItem value="Sibling">Sibling</SelectItem>
                 <SelectItem value="Spouse">Spouse</SelectItem>
-              )}
-              <SelectItem value="Guardian">Guardian</SelectItem>
-              <SelectItem value="Relative">Relative</SelectItem>
-              <SelectItem value="Friend">Friend</SelectItem>
-            </SelectContent>
-          </Select>
+                <SelectItem value="Guardian">Guardian</SelectItem>
+                <SelectItem value="Relative">Relative</SelectItem>
+                <SelectItem value="Friend">Friend</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="space-y-2">
@@ -1517,17 +1342,13 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
               value={formData.emergency_contact_birthday}
               onChange={(e) => handleInputChange("emergency_contact_birthday", e.target.value)}
               required
-              max={new Date().toISOString().split('T')[0]} // anyone's birthday cannot be future date
             />
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact Number *</label>
             <Input
               value={formData.emergency_contact_number}
-              onChange={(e) => {
-                const numericValue = e.target.value.replace(/\D/g, '').slice(0, 11);
-                handleInputChange("emergency_contact_number", numericValue);
-              }}
+              onChange={(e) => handleInputChange("emergency_contact_number", e.target.value)}
               required
               placeholder="Enter emergency contact number"
             />
@@ -1725,7 +1546,6 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
                         size="icon" 
                         className="h-8 w-8 text-red-600 hover:text-red-700"
                         onClick={() => handleDeleteProfile(profile.id)}
-                        disabled={profile.status === "approved"} // disable if approved
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1886,169 +1706,49 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
                     <p><span className="font-medium">Relationship:</span> {selectedProfile.emergency_contact_relationship || 'N/A'}</p>
                     <p><span className="font-medium">Birthday:</span> {selectedProfile.emergency_contact_birthday ? new Date(selectedProfile.emergency_contact_birthday).toLocaleDateString() : 'N/A'}</p>
                   </div>
-
                   <div>
                     <p><span className="font-medium">Contact Number:</span> {selectedProfile.emergency_contact_number || 'N/A'}</p>
                     <p><span className="font-medium">Address:</span> {selectedProfile.emergency_contact_address || 'N/A'}</p>
-                  {selectedProfile.approved_date && (
-                    <div className="text-right">
-                      <p className="text-sm text-blue-600">Approved on: {new Date(selectedProfile.approved_date).toLocaleDateString()}</p>
-                    </div>
-                  )}
                   </div>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4 pt-6 border-t">
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    setShowViewModal(false);
-                    handleEditProfile(selectedProfile);
-                  }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                >
-                  <Edit className="mr-2 h-4 w-4 inline" />
-                  Edit Profile
-                </button>
-                <button
-                  onClick={() => {
-                    setShowViewModal(false);
-                    handleViewID(selectedProfile);
-                  }}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                >
-                  <Printer className="mr-2 h-4 w-4 inline" />
-                  View ID Card
-                </button>
-                <select 
-                  value={selectedProfile.status}
-                  onChange={(e) => handleStatusChange(selectedProfile.id, e.target.value)}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors border-none cursor-pointer text-center"
-                  disabled={selectedProfile.status === "approved"}
-                >
-                  <option value="pending">Mark as Pending</option>
-                  <option value="approved">Approve</option>
-                  <option value="rejected">Reject</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ID Card Modal */}
-      {showIDModal && selectedIDProfile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full">
-            {/* Header */}
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-2xl font-bold text-gray-900">
-                KKID Card - {selectedIDProfile.full_name}
-              </h2>
-              <button
-                onClick={() => setShowIDModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-                disabled={printing}
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* ID Card Display Section */}
-            <div className="p-8 flex flex-col items-center">
-              <div
-                id="id-card-template"
-                className="w-[345px] h-[217px] bg-gradient-to-br from-blue-50 to-white border-4 border-blue-600 rounded-2xl shadow-2xl relative overflow-hidden"
-                style={{
-                  WebkitPrintColorAdjust: 'exact',
-                  printColorAdjust: 'exact'
-                }}
-              >
-                {/* Top/Bottom Bars */}
-                <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
-                <div className="absolute bottom-0 left-0 w-full h-2 bg-blue-600"></div>
-
-                {/* Background Pattern */}
-                <div className="absolute inset-0 opacity-5">
-                  <div className="absolute top-4 right-4 text-6xl font-bold text-blue-400">
-                    KKID
-                  </div>
-                  <div className="absolute bottom-4 left-4 text-4xl font-bold text-blue-300 rotate-12">
-                    YOUTH
-                  </div>
+              
+              <div className="pt-6 border-t">
+                <div className="flex gap-4">
+                  <Button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleEditProfile(selectedProfile);
+                    }}
+                    className="flex-1"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleViewID(selectedProfile);
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    View ID Card
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to delete this profile?')) {
+                        handleDeleteProfile(selectedProfile.id);
+                        setShowViewModal(false);
+                      }
+                    }}
+                    variant="destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
                 </div>
-
-                {/* Card Content */}
-                <div className="p-4 h-full flex">
-                  {/* Left Section - Logo & Info */}
-                  <div className="w-1/3 pr-3 border-r border-blue-200">
-                    <div className="mb-3 text-center">
-                      <div className="inline-block p-2 bg-blue-600 rounded-lg">
-                        <User className="h-8 w-8 text-white" />
-                      </div>
-                      <div className="mt-2">
-                        <div className="text-xs text-gray-500">KKID No.</div>
-                        <div className="font-bold text-sm text-blue-700">{selectedIDProfile.kkid_number}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 relative w-24 h-24 mx-auto border-2 border-blue-500 rounded-lg bg-gray-100 overflow-hidden">
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-gray-100">
-                        <Camera className="h-8 w-8 text-gray-400" />
-                      </div>
-                      <div className="absolute bottom-0 w-full bg-blue-600 text-white text-xs py-1 text-center">
-                        PHOTO
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Section could go here if needed */}
-                  <div className="w-2/3 pl-4">
-                    {/* You can add profile details or leave empty */}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4 pt-6 w-full">
-                <Button
-                  onClick={() => {
-                    setShowIDModal(false);
-                    handleEditProfile(selectedIDProfile);
-                  }}
-                  className="flex-1"
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit Profile
-                </Button>
-                <Button
-                  onClick={() => handleViewID(selectedIDProfile)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Printer className="h-4 w-4 mr-2" />
-                  View ID Card
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to delete this profile?')) {
-                      handleDeleteProfile(selectedIDProfile.id);
-                      setShowIDModal(false);
-                    }
-                  }}
-                  variant="destructive"
-                  className="flex-1"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
               </div>
             </div>
           </div>
