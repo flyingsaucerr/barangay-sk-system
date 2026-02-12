@@ -577,7 +577,6 @@ const createFixedIDCardHTML = (side = 'front') => {
   
   let photoUrl = getImageUrl(profile.photo_url || '');
   
-  // Update the img tag in the HTML to include onerror handler
   const photoHTML = photoUrl ? 
     `<img src="${photoUrl}" alt="${profile.full_name}" 
           style="width: 100%; height: 100%; object-fit: cover; display: block;" 
@@ -956,7 +955,7 @@ const handleDownloadPDF = async () => {
           scale: 3,
           useCORS: true,
           backgroundColor: '#ffffff',
-          logging: true,
+          logging: false,
           width: container.offsetWidth,
           height: container.offsetHeight,
           allowTaint: true,
@@ -991,7 +990,7 @@ const handleDownloadPDF = async () => {
             });
           }
         });
-        
+      
         // Clean up
         document.body.removeChild(container);
         
