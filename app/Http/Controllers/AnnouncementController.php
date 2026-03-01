@@ -6,6 +6,7 @@ use App\Models\Announcement;
 use App\Models\Tag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class AnnouncementController extends Controller
 {
@@ -23,17 +24,26 @@ class AnnouncementController extends Controller
             'full_content' => 'required|string',
             'priority' => 'required|in:low,medium,high',
             'tags' => 'array',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Add image validation
         ]);
 
-        $announcement = Announcement::create([
+        $data = [
             'title' => $request->title,
             'content' => $request->content,
             'full_content' => $request->full_content,
             'date' => now(),
-            'author' => Auth::user()->name, // Get author name from authenticated user
+            'author' => Auth::user()->name,
             'priority' => $request->priority,
-            'user_id' => Auth::id(), // Use authenticated user's ID
-        ]);
+            'user_id' => Auth::id(),
+        ];
+
+        // Handle image upload
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('announcements', 'public');
+            $data['image'] = $imagePath;
+        }
+
+        $announcement = Announcement::create($data);
 
         if ($request->has('tags')) {
             $tagIds = [];
@@ -63,14 +73,28 @@ class AnnouncementController extends Controller
             'full_content' => 'required|string',
             'priority' => 'required|in:low,medium,high',
             'tags' => 'array',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Add image validation
         ]);
 
-        $announcement->update([
+        $data = [
             'title' => $request->title,
             'content' => $request->content,
             'full_content' => $request->full_content,
             'priority' => $request->priority,
-        ]);
+        ];
+
+        // Handle image upload
+        if ($request->hasFile('image')) {
+            // Delete old image if exists
+            if ($announcement->image) {
+                Storage::disk('public')->delete($announcement->image);
+            }
+            
+            $imagePath = $request->file('image')->store('announcements', 'public');
+            $data['image'] = $imagePath;
+        }
+
+        $announcement->update($data);
 
         if ($request->has('tags')) {
             $tagIds = [];
@@ -81,12 +105,18 @@ class AnnouncementController extends Controller
             $announcement->tags()->sync($tagIds);
         }
 
-        return response()->json($announcement->load('tags'));
+        return response()->json($announcement->load('tags', 'user'));
     }
 
     public function destroy($id)
     {
         $announcement = Announcement::findOrFail($id);
+        
+        // Delete image file if exists
+        if ($announcement->image) {
+            Storage::disk('public')->delete($announcement->image);
+        }
+        
         $announcement->delete();
 
         return response()->json(['message' => 'Announcement deleted successfully']);

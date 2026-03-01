@@ -4,13 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MapPin, Users, Clock, Wrench, CalendarCheck, CalendarX, Plus, Edit, Trash2, X, Building, Home, Heart, Dumbbell } from "lucide-react";
+import { MapPin, Users, Clock, Wrench, CalendarCheck, CalendarX, Plus, Edit, Trash2, X, Building, Home, Heart, Dumbbell, Image as ImageIcon } from "lucide-react";
 
 const Facilities = () => {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   
   const userRole = localStorage.getItem('userRole') || 'resident';
   const authToken = localStorage.getItem('authToken');
@@ -77,99 +79,185 @@ const Facilities = () => {
     }
   };
 
-  const getPlaceholderImage = (facilityName) => {
-    const colors = [
-      'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
-      'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
-    ];
-    const color = colors[facilityName.length % colors.length];
-    
-    let IconComponent = Building;
-    
-    if (facilityName.toLowerCase().includes('hall') || facilityName.toLowerCase().includes('multi-purpose')) {
-      IconComponent = Building;
-    } else if (facilityName.toLowerCase().includes('sports') || facilityName.toLowerCase().includes('complex')) {
-      IconComponent = Dumbbell;
-    } else if (facilityName.toLowerCase().includes('health') || facilityName.toLowerCase().includes('medical')) {
-      IconComponent = Heart;
-    } else if (facilityName.toLowerCase().includes('senior') || facilityName.toLowerCase().includes('center')) {
-      IconComponent = Home;
-    }
+const getFacilityImage = (facility) => {
+  // The column name in your database is 'image'
+  const imageUrl = facility.image;
+  
+  // If facility has an image URL, use it
+  if (imageUrl) {
+    // The image is stored in storage/app/public/facilities/
+    // and accessed via the public/storage symlink
+    const fullImageUrl = `http://localhost:8000/storage/${imageUrl}`;
     
     return (
-      <div className={`w-full h-full ${color} flex items-center justify-center`}>
-        <div className="text-center p-4">
-          <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-          <span className="text-gray-500 text-sm">Facility Image</span>
-        </div>
-      </div>
+      <img
+        src={fullImageUrl}
+        alt={facility.name}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          console.error('Image failed to load:', fullImageUrl);
+          e.target.onerror = null;
+          e.target.style.display = 'none';
+          // Show placeholder on error
+          const parent = e.target.parentNode;
+          const placeholder = document.createElement('div');
+          placeholder.className = 'w-full h-full bg-gray-200 flex items-center justify-center';
+          placeholder.innerHTML = '<div class="text-gray-400">Image not found</div>';
+          parent.appendChild(placeholder);
+        }}
+      />
     );
-  };
+  }
+  
+  // Otherwise show placeholder with icon
+  const colors = [
+    'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
+    'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
+  ];
+  const color = colors[facility.name.length % colors.length];
+  
+  let IconComponent = Building;
+  const nameLower = facility.name.toLowerCase();
+  
+  if (nameLower.includes('hall') || nameLower.includes('multi-purpose')) {
+    IconComponent = Building;
+  } else if (nameLower.includes('sports') || nameLower.includes('gym') || nameLower.includes('court')) {
+    IconComponent = Dumbbell;
+  } else if (nameLower.includes('health') || nameLower.includes('medical') || nameLower.includes('clinic')) {
+    IconComponent = Heart;
+  } else if (nameLower.includes('senior') || nameLower.includes('center')) {
+    IconComponent = Home;
+  }
+  
+  return (
+    <div className={`w-full h-full ${color} flex items-center justify-center`}>
+      <div className="text-center p-4">
+        <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+        <span className="text-gray-500 text-sm">{facility.name}</span>
+      </div>
+    </div>
+  );
+};
 
-  const handleAddFacility = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('http://localhost:8000/api/facilities', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          capacity: parseInt(formData.capacity),
-          amenities: formData.amenities.split(',').map(a => a.trim()).filter(a => a),
-        }),
-      });
-
-      if (response.ok) {
-        await fetchFacilities();
-        setShowAddForm(false);
-        resetForm();
-        alert('Facility created successfully!');
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to create facility:', response.status, errorText);
-        alert('Failed to create facility: ' + errorText);
-      }
-    } catch (error) {
-      console.error('Error creating facility:', error);
-      alert('Error creating facility: ' + error.message);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const handleEditFacility = (facility) => {
-    setEditingFacility(facility);
-    setFormData({
-      name: facility.name,
-      description: facility.description,
-      capacity: facility.capacity.toString(),
-      location: facility.location,
-      hours: facility.hours,
-      status: facility.status,
-      amenities: facility.amenities ? facility.amenities.join(', ') : ''
+const handleAddFacility = async (e) => {
+  e.preventDefault();
+  try {
+    const formDataToSend = new FormData();
+    formDataToSend.append('name', formData.name);
+    formDataToSend.append('description', formData.description);
+    formDataToSend.append('capacity', formData.capacity);
+    formDataToSend.append('location', formData.location);
+    formDataToSend.append('hours', formData.hours);
+    formDataToSend.append('status', formData.status);
+    
+    // Send amenities as individual form fields with the same name
+    const amenitiesArray = formData.amenities.split(',').map(a => a.trim()).filter(a => a);
+    amenitiesArray.forEach(amenity => {
+      formDataToSend.append('amenities[]', amenity);
     });
-    setShowAddForm(true);
-  };
+    
+    if (imageFile) {
+      console.log('Image file being uploaded:', imageFile.name, imageFile.type, imageFile.size);
+      formDataToSend.append('image', imageFile);
+    } else {
+      console.log('No image file selected');
+    }
 
-  const handleUpdateFacility = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(`http://localhost:8000/api/facilities/${editingFacility.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          capacity: parseInt(formData.capacity),
-          amenities: formData.amenities.split(',').map(a => a.trim()).filter(a => a),
-        }),
-      });
+    // Log FormData contents (for debugging)
+    for (let pair of formDataToSend.entries()) {
+      console.log(pair[0] + ': ' + pair[1]);
+    }
 
+    const response = await fetch('http://localhost:8000/api/facilities', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Accept': 'application/json',
+      },
+      body: formDataToSend,
+    });
+
+    if (response.ok) {
+      const responseData = await response.json();
+      console.log('Response data:', responseData); // Check what the backend returns
+      await fetchFacilities();
+      setShowAddForm(false);
+      resetForm();
+      alert('Facility created successfully!');
+    } else {
+      const errorText = await response.text();
+      console.error('Failed to create facility:', response.status, errorText);
+      alert('Failed to create facility: ' + errorText);
+    }
+  } catch (error) {
+    console.error('Error creating facility:', error);
+    alert('Error creating facility: ' + error.message);
+  }
+};
+
+const handleEditFacility = (facility) => {
+  setEditingFacility(facility);
+  setFormData({
+    name: facility.name,
+    description: facility.description,
+    capacity: facility.capacity.toString(),
+    location: facility.location,
+    hours: facility.hours,
+    status: facility.status,
+    amenities: facility.amenities ? facility.amenities.join(', ') : ''
+  });
+  
+  // Set image preview if exists
+  if (facility.image) {
+    const fullImageUrl = `http://localhost:8000/storage/${facility.image}`;
+    setImagePreview(fullImageUrl);
+  }
+  setShowAddForm(true);
+};
+
+const handleUpdateFacility = async (e) => {
+  e.preventDefault();
+  try {
+    const formDataToSend = new FormData();
+    formDataToSend.append('name', formData.name);
+    formDataToSend.append('description', formData.description);
+    formDataToSend.append('capacity', formData.capacity);
+    formDataToSend.append('location', formData.location);
+    formDataToSend.append('hours', formData.hours);
+    formDataToSend.append('status', formData.status);
+    
+    // Send amenities as individual form fields with the same name
+    const amenitiesArray = formData.amenities.split(',').map(a => a.trim()).filter(a => a);
+    amenitiesArray.forEach(amenity => {
+      formDataToSend.append('amenities[]', amenity);
+    });
+    
+    formDataToSend.append('_method', 'PUT');
+    
+    if (imageFile) {
+      formDataToSend.append('image', imageFile);
+    }
+
+    const response = await fetch(`http://localhost:8000/api/facilities/${editingFacility.id}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Accept': 'application/json',
+      },
+      body: formDataToSend,
+    });
       if (response.ok) {
         await fetchFacilities();
         setShowAddForm(false);
@@ -254,6 +342,8 @@ const Facilities = () => {
       status: 'available',
       amenities: ''
     });
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   if (loading) {
@@ -323,27 +413,13 @@ const Facilities = () => {
           </Card>
         </div>
 
-
         {/* Facilities Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {facilities.map((facility) => (
             <Card key={facility.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="aspect-video relative">
-                {facility.image ? (
-                  <img
-                    src={facility.image}
-                    alt={facility.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'block';
-                    }}
-                  />
-                ) : null}
-                <div className={`w-full h-full ${!facility.image ? 'block' : 'hidden'}`}>
-                  {getPlaceholderImage(facility.name)}
-                </div>
-                <div className="absolute top-4 right-4 bg-card/90 backdrop-blur rounded-full p-1">
+              <div className="aspect-video relative bg-gray-100">
+                {getFacilityImage(facility)}
+                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur rounded-full p-1 shadow-md">
                   {getStatusIcon(facility.status)}
                 </div>
               </div>
@@ -436,7 +512,10 @@ const Facilities = () => {
                   {editingFacility ? 'Edit Facility' : 'Add New Facility'}
                 </h2>
                 <button
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => {
+                    setShowAddForm(false);
+                    resetForm();
+                  }}
                   className="text-gray-500 hover:text-gray-700"
                 >
                   <X className="h-6 w-6" />
@@ -444,6 +523,35 @@ const Facilities = () => {
               </div>
               
               <form onSubmit={editingFacility ? handleUpdateFacility : handleAddFacility} className="p-6 space-y-4">
+                {/* Image Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Facility Image
+                  </label>
+                  <div className="flex items-center space-x-4">
+                    <div className="w-32 h-32 bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
+                      {imagePreview ? (
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="h-8 w-8 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Upload an image for the facility (JPG, PNG, GIF)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Facility Name *
@@ -549,7 +657,10 @@ const Facilities = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowAddForm(false)}
+                    onClick={() => {
+                      setShowAddForm(false);
+                      resetForm();
+                    }}
                     className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
                   >
                     Cancel

@@ -12,7 +12,12 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->text('content');
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // who posted it
+            $table->text('full_content')->nullable(); // Add this
+            $table->string('author')->nullable(); // Add this
+            $table->date('date')->nullable(); // Add this
+            $table->enum('priority', ['low', 'medium', 'high'])->default('medium'); // Add this
+            $table->string('image')->nullable(); // Add this
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
 

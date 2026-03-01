@@ -45,10 +45,8 @@ Route::get('/debug-test', function() {
     ]);
 });
 
-// Add to your routes/api.php
 Route::get('/admin/printing/debug/file-storage', function () {
     try {
-        // List all files in printing-requests directory
         $files = Storage::disk('public')->allFiles('printing-requests');
         
         $fileDetails = [];
@@ -110,6 +108,9 @@ Route::get('/login', function () {
     ]);
 })->name('login');
 
+Route::get('/kagawad/featured', [KagawadController::class, 'getFeatured']);
+Route::get('/kagawad', [KagawadController::class, 'index']);
+
 // Public APIs (No authentication required)
 Route::middleware('api')->group(function () {
     // Public content
@@ -145,6 +146,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Add registration stats route for admin only
     Route::get('/registration-stats', [RegisterController::class, 'stats'])->middleware('admin');
     
+    Route::post('/kagawad', [KagawadController::class, 'store']);
+    Route::put('/kagawad/{id}', [KagawadController::class, 'update']);
+    Route::delete('/kagawad/{id}', [KagawadController::class, 'destroy']);
+    Route::post('/kagawad/{id}/set-featured', [KagawadController::class, 'setFeatured']);
+    Route::post('/kagawad/{kagawadId}/activities', [KagawadController::class, 'addActivity']);
+    Route::delete('/kagawad/activities/{id}', [KagawadController::class, 'deleteActivity']);
+
     // Announcements Admin
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update']);

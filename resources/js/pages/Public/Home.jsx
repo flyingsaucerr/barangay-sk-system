@@ -15,31 +15,137 @@ import {
   CheckCircle,
   Star,
   Facebook,
-  Instagram
+  Instagram,
+  Users,
+  CalendarDays
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 
 import heroImage from "@/assets/sk-hero-banner.jpg";
 import barangayHall from "@/assets/barangayHall.jpg";
 
+// KagawadOfTheDay Component for Public View
+const KagawadOfTheDay = ({ kagawad }) => (
+  <Card className="mb-12 overflow-hidden">
+    <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
+      <div className="flex items-center gap-3">
+        <Users className="h-6 w-6 text-primary" />
+        <div>
+          <CardTitle className="text-2xl">Kagawad of the Day</CardTitle>
+          <CardDescription>Meet your dedicated public servant for today</CardDescription>
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Photo Section */}
+        <div className="md:col-span-1">
+          <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+            {kagawad.photo ? (
+              <img 
+                src={kagawad.photo} 
+                alt={kagawad.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                <Users className="h-16 w-16 text-primary/50" />
+              </div>
+            )}
+          </div>
+          <div className="mt-3 text-center">
+            <Badge variant="outline" className="bg-primary/5">
+              <CalendarDays className="h-3 w-3 mr-1" />
+              Featured Today
+            </Badge>
+          </div>
+        </div>
+
+        {/* Info Section */}
+        <div className="md:col-span-2">
+          <h3 className="text-2xl font-bold mb-1">{kagawad.name}</h3>
+          <p className="text-primary font-medium mb-3">{kagawad.position}</p>
+          <p className="text-muted-foreground mb-4">{kagawad.bio}</p>
+          
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <span>{kagawad.contact}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span>{kagawad.email}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span>{kagawad.address}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activities */}
+        <div className="md:col-span-1">
+          <h4 className="font-semibold mb-3 flex items-center gap-2">
+            <Award className="h-4 w-4 text-primary" />
+            Recent Activities
+          </h4>
+          <div className="space-y-3">
+            {kagawad.recentActivities?.map((activity, index) => (
+              <div key={index} className="border-l-2 border-primary pl-3 py-1">
+                <p className="text-sm font-medium">{activity.title}</p>
+                <p className="text-xs text-muted-foreground">{activity.date}</p>
+                <p className="text-xs mt-1 line-clamp-2">{activity.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
+
 export default function PublicHome() {
+  const [featuredKagawad, setFeaturedKagawad] = useState({
+    id: '1',
+    name: 'Maria Santos',
+    position: 'SK Chairman',
+    photo: null,
+    bio: 'Dedicated to serving the youth of our barangay with passion and commitment. Leading various community programs and youth development initiatives.',
+    contact: '+63 912 345 6789',
+    email: 'maria.santos@skbarangay.gov.ph',
+    address: 'Barangay San Jose, Quezon City',
+    dateStarted: 'January 2023',
+    recentActivities: [
+      {
+        title: 'Community Youth Summit',
+        date: '2024-01-15',
+        description: 'Organized and led the annual youth leadership summit with 200+ attendees'
+      },
+      {
+        title: 'Basketball Tournament',
+        date: '2024-01-10',
+        description: 'Spearheaded the inter-barangay basketball competition'
+      },
+      {
+        title: 'Clean-up Drive',
+        date: '2024-01-05',
+        description: 'Led the community clean-up drive in Zone 3'
+      }
+    ]
+  });
+
   const services = [
-    { title: "Document Requests", description: "Solication, suggestions", icon: <FileText className="h-6 w-6" />, link: "/services" },
+    { title: "Document Requests", description: "Solicitation, suggestions", icon: <FileText className="h-6 w-6" />, link: "/services" },
     { title: "Facility Viewing", description: "Track facility status", icon: <Building className="h-6 w-6" />, link: "/facilities" },
     { title: "Project Updates", description: "Stay informed about community development projects", icon: <Award className="h-6 w-6" />, link: "/projects" },
     { title: "Announcements", description: "Latest news and updates from your barangay", icon: <Megaphone className="h-6 w-6" />, link: "/announcements" },
   ];
 
-  const features = [
-    { title: "24/7 Online Services", description: "Submit requests anytime, anywhere", icon: <Clock className="h-5 w-5 text-primary" /> },
-    { title: "Real-time Updates", description: "Track your request status in real-time", icon: <CheckCircle className="h-5 w-5 text-primary" /> },
-    { title: "Transparent Process", description: "Clear and transparent service delivery", icon: <Star className="h-5 w-5 text-primary" /> },
-  ];
-
   const stats = [
     { label: "Active Projects", value: "23", icon: <Building className="h-5 w-5" /> },
     { label: "Completed Requests", value: "890", icon: <CheckCircle className="h-5 w-5" /> },
-    { label: "Accomplishmentys", value: "15", icon: <Award className="h-5 w-5" /> },
+    { label: "Accomplishments", value: "15", icon: <Award className="h-5 w-5" /> },
     { label: "Reports", value: "Monthly", icon: <BarChart3 className="h-5 w-5" /> },
   ];
 
@@ -116,6 +222,13 @@ export default function PublicHome() {
     });
   };
 
+useEffect(() => {
+  const savedKagawad = localStorage.getItem('featuredKagawad');
+  if (savedKagawad) {
+    setFeaturedKagawad(JSON.parse(savedKagawad));
+  }
+}, []);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -191,6 +304,13 @@ export default function PublicHome() {
               <p className="text-muted-foreground">{s.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Kagawad of the Day Section */}
+      <section className="py-8">
+        <div className="container mx-auto px-4">
+          <KagawadOfTheDay kagawad={featuredKagawad} />
         </div>
       </section>
 
@@ -297,28 +417,6 @@ export default function PublicHome() {
                   </CardContent>
                 </Link>
               </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-16 bg-muted/30">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-4">Why Choose Our Services?</h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-12">
-            Experience modern, efficient, and transparent barangay services.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {features.map((f, i) => (
-              <div key={i}>
-                <div className="flex justify-center mb-4">
-                  <div className="p-4 rounded-full bg-background shadow-lg">{f.icon}</div>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">{f.title}</h3>
-                <p className="text-muted-foreground">{f.description}</p>
-              </div>
             ))}
           </div>
         </div>
