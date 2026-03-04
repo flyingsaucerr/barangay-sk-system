@@ -55,7 +55,32 @@ const Announcements = () => {
     }
   };
 
-  const getPlaceholderImage = (announcement) => {
+  const getAnnouncementImage = (announcement) => {
+    // Check if announcement has an image
+    if (announcement.image) {
+      const imageUrl = `http://localhost:8000/storage/${announcement.image}`;
+      return (
+        <img
+          src={imageUrl}
+          alt={announcement.title}
+          className="w-full h-48 object-cover"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.style.display = 'none';
+            // Show placeholder on error
+            const parent = e.target.parentNode;
+            const placeholder = getPlaceholderContent(announcement);
+            parent.innerHTML = placeholder.props.children;
+          }}
+        />
+      );
+    }
+    
+    // Otherwise show placeholder
+    return getPlaceholderContent(announcement);
+  };
+
+  const getPlaceholderContent = (announcement) => {
     const colors = [
       'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
       'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
@@ -81,7 +106,7 @@ const Announcements = () => {
       <div className={`w-full h-48 ${color} flex items-center justify-center`}>
         <div className="text-center p-4">
           <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-          <span className="text-gray-500 text-sm">Announcement Image</span>
+          <span className="text-gray-500 text-sm">{announcement.title}</span>
         </div>
       </div>
     );
@@ -92,9 +117,18 @@ const Announcements = () => {
     setShowReadMore(true);
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Unknown date';
+    return new Date(dateString).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 flex justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="mt-4 text-muted-foreground">Loading announcements...</p>
@@ -142,11 +176,12 @@ const Announcements = () => {
         {/* Announcements Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAnnouncements.map((announcement) => (
-            <Card key={announcement.id} className="hover:shadow-lg transition-all duration-300 group border-0 shadow-md">
-              <div className="relative overflow-hidden rounded-t-lg">
-                <div className="w-full">
-                  {getPlaceholderImage(announcement)}
-                </div>
+            <Card key={announcement.id} className="hover:shadow-lg transition-all duration-300 group border-0 shadow-md overflow-hidden">
+              <div className="relative overflow-hidden rounded-t-lg bg-gray-100 h-48">
+                {getAnnouncementImage(announcement)}
+                <Badge className={`absolute top-3 right-3 border ${getPriorityColor(announcement.priority)}`}>
+                  {(announcement.priority || 'medium').toUpperCase()}
+                </Badge>
               </div>
               
               <CardHeader className="pb-3">
@@ -156,7 +191,10 @@ const Announcements = () => {
                 
                 <CardDescription className="flex items-center space-x-2 text-sm">
                   <Calendar className="h-4 w-4" />
-                  <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                  <span>{formatDate(announcement.created_at)}</span>
+                  <span>•</span>
+                  <User className="h-4 w-4" />
+                  <span className="truncate">{announcement.author || (announcement.user && announcement.user.name) || 'Barangay'}</span>
                 </CardDescription>
               </CardHeader>
               
@@ -166,11 +204,16 @@ const Announcements = () => {
                 </p>
                 
                 <div className="flex flex-wrap gap-1">
-                  {announcement.tags && announcement.tags.map((tag) => (
+                  {announcement.tags && announcement.tags.slice(0, 3).map((tag) => (
                     <Badge key={tag.id} variant="secondary" className="text-xs">
                       {tag.name}
                     </Badge>
                   ))}
+                  {announcement.tags && announcement.tags.length > 3 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{announcement.tags.length - 3} more
+                    </Badge>
+                  )}
                 </div>
                 
                 <Button 
@@ -220,18 +263,29 @@ const Announcements = () => {
               </div>
               
               <div className="p-6 space-y-6">
+                {/* Announcement Image in Modal */}
+                {selectedAnnouncement.image && (
+                  <div className="rounded-lg overflow-hidden">
+                    <img
+                      src={`http://localhost:8000/storage/${selectedAnnouncement.image}`}
+                      alt={selectedAnnouncement.title}
+                      className="w-full max-h-96 object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Header Info */}
                 <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>{new Date(selectedAnnouncement.created_at).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}</span>
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <span>{formatDate(selectedAnnouncement.created_at)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
+                    <User className="h-4 w-4 text-primary" />
                     <span>{selectedAnnouncement.author || (selectedAnnouncement.user && selectedAnnouncement.user.name) || 'Barangay Official'}</span>
                   </div>
                   <Badge className={getPriorityColor(selectedAnnouncement.priority)}>
@@ -240,13 +294,15 @@ const Announcements = () => {
                 </div>
 
                 {/* Tags */}
-                <div className="flex flex-wrap gap-2">
-                  {selectedAnnouncement.tags && selectedAnnouncement.tags.map((tag) => (
-                    <Badge key={tag.id} variant="secondary" className="text-sm">
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </div>
+                {selectedAnnouncement.tags && selectedAnnouncement.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAnnouncement.tags.map((tag) => (
+                      <Badge key={tag.id} variant="secondary" className="text-sm">
+                        {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
 
                 {/* Full Content */}
                 <div className="prose max-w-none">

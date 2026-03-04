@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Megaphone, Search, Calendar, Plus, Edit, Trash2, X, User, Trophy, GraduationCap, Leaf, Users } from 'lucide-react';
+import { Megaphone, Search, Calendar, Plus, Edit, Trash2, X, User, Trophy, GraduationCap, Leaf, Users, Image as ImageIcon } from 'lucide-react';
 
 const Announcements = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,6 +14,8 @@ const Announcements = () => {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   
   // Get user info from your authentication
   const userRole = localStorage.getItem('userRole') || 'resident';
@@ -21,7 +23,8 @@ const Announcements = () => {
   const authToken = localStorage.getItem('authToken');
 
   console.log('User Role:', userRole);
-console.log('Auth Token:', authToken ? 'Exists' : 'Missing');
+  console.log('Auth Token:', authToken ? 'Exists' : 'Missing');
+  
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -74,43 +77,91 @@ console.log('Auth Token:', authToken ? 'Exists' : 'Missing');
     }
   };
 
-  const getPlaceholderImage = (announcement) => {
-    const colors = [
-      'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
-      'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
-    ];
-    const color = colors[announcement.title.length % colors.length];
-    
-    let IconComponent = Megaphone;
-    if (announcement.tags && announcement.tags.some(tag => 
-      tag.name.toLowerCase().includes('sports'))) {
-      IconComponent = Trophy;
-    } else if (announcement.tags && announcement.tags.some(tag => 
-      tag.name.toLowerCase().includes('education') || tag.name.toLowerCase().includes('leadership'))) {
-      IconComponent = GraduationCap;
-    } else if (announcement.tags && announcement.tags.some(tag => 
-      tag.name.toLowerCase().includes('environment') || tag.name.toLowerCase().includes('cleanup'))) {
-      IconComponent = Leaf;
-    } else if (announcement.tags && announcement.tags.some(tag => 
-      tag.name.toLowerCase().includes('community'))) {
-      IconComponent = Users;
-    }
-    
+const getAnnouncementImage = (announcement) => {
+  // Check if announcement has an image (field name is 'image', not 'image_url')
+  if (announcement.image) {
+    const imageUrl = `http://localhost:8000/storage/${announcement.image}`;
     return (
-      <div className={`w-full h-48 ${color} flex items-center justify-center`}>
-        <div className="text-center p-4">
-          <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-          <span className="text-gray-500 text-sm">Announcement Image</span>
-        </div>
-      </div>
+      <img
+        src={imageUrl}
+        alt={announcement.title}
+        className="w-full h-48 object-cover"
+        onError={(e) => {
+          console.error('Image failed to load:', imageUrl);
+          e.target.onerror = null;
+          e.target.style.display = 'none';
+          // Show placeholder on error
+          const parent = e.target.parentNode;
+          const placeholder = getPlaceholderContent(announcement);
+          // Replace the img with placeholder
+          const div = document.createElement('div');
+          div.className = `w-full h-48 ${getPlaceholderColor(announcement)} flex items-center justify-center`;
+          div.innerHTML = `<div class="text-center p-4"><div class="text-gray-500 text-sm">${announcement.title}</div></div>`;
+          parent.appendChild(div);
+        }}
+      />
     );
+  }
+  
+  // Otherwise show placeholder
+  return getPlaceholderContent(announcement);
+};
+
+const getPlaceholderColor = (announcement) => {
+  const colors = [
+    'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
+    'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
+  ];
+  return colors[announcement.title.length % colors.length];
+};
+
+const getPlaceholderContent = (announcement) => {
+  const colors = [
+    'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
+    'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
+  ];
+  const color = colors[announcement.title.length % colors.length];
+  
+  let IconComponent = Megaphone;
+  if (announcement.tags && announcement.tags.some(tag => 
+    tag.name.toLowerCase().includes('sports'))) {
+    IconComponent = Trophy;
+  } else if (announcement.tags && announcement.tags.some(tag => 
+    tag.name.toLowerCase().includes('education') || tag.name.toLowerCase().includes('leadership'))) {
+    IconComponent = GraduationCap;
+  } else if (announcement.tags && announcement.tags.some(tag => 
+    tag.name.toLowerCase().includes('environment') || tag.name.toLowerCase().includes('cleanup'))) {
+    IconComponent = Leaf;
+  } else if (announcement.tags && announcement.tags.some(tag => 
+    tag.name.toLowerCase().includes('community'))) {
+    IconComponent = Users;
+  }
+  
+  return (
+    <div className={`w-full h-48 ${color} flex items-center justify-center`}>
+      <div className="text-center p-4">
+        <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+        <span className="text-gray-500 text-sm">{announcement.title}</span>
+      </div>
+    </div>
+  );
+};
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleReadMore = (announcement) => {
     setSelectedAnnouncement(announcement);
     setShowReadMore(true);
   };
-
 const handleAddAnnouncement = async (e) => {
   e.preventDefault();
   
@@ -123,45 +174,84 @@ const handleAddAnnouncement = async (e) => {
       return;
     }
 
-    console.log('🔍 DEBUG - Before fetch:');
-    console.log('Token:', token);
-    console.log('Form data:', formData);
+    console.log('=== DEBUG: Starting announcement creation ===');
+    console.log('1. Form data:', formData);
+    console.log('2. Image file:', imageFile ? {
+      name: imageFile.name,
+      type: imageFile.type,
+      size: imageFile.size,
+      lastModified: new Date(imageFile.lastModified).toLocaleString()
+    } : 'No image selected');
+
+    const formDataToSend = new FormData();
+    formDataToSend.append('title', formData.title);
+    formDataToSend.append('content', formData.content);
+    formDataToSend.append('full_content', formData.full_content);
+    formDataToSend.append('priority', formData.priority);
     
-    const requestBody = {
-      title: formData.title,
-      content: formData.content,
-      full_content: formData.full_content,
-      priority: formData.priority,
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-    };
+    // Send tags as individual form fields with the same name
+    const tagsArray = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+    console.log('3. Tags array:', tagsArray);
+    tagsArray.forEach(tag => {
+      formDataToSend.append('tags[]', tag);
+    });
     
-    console.log('Request body:', requestBody);
-    console.log('Request body JSON:', JSON.stringify(requestBody));
+    if (imageFile) {
+      console.log('4. Appending image file to FormData');
+      formDataToSend.append('image', imageFile);
+    } else {
+      console.log('4. No image file to append');
+    }
+
+    // Log FormData contents (for debugging)
+    console.log('5. FormData contents:');
+    for (let pair of formDataToSend.entries()) {
+      if (pair[0] === 'image') {
+        console.log(`   - ${pair[0]}: [File: ${pair[1].name}, type: ${pair[1].type}, size: ${pair[1].size} bytes]`);
+      } else if (pair[0].startsWith('tags[]')) {
+        console.log(`   - ${pair[0]}: ${pair[1]}`);
+      } else {
+        console.log(`   - ${pair[0]}: ${pair[1]}`);
+      }
+    }
+
+    console.log('6. Sending request to: http://localhost:8000/api/announcements');
+    console.log('7. Auth token exists:', !!token);
 
     const response = await fetch('http://localhost:8000/api/announcements', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
+        // Don't set Content-Type header - browser will set it with boundary
       },
-      body: JSON.stringify(requestBody),
+      body: formDataToSend,
     });
 
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-    
+    console.log('8. Response status:', response.status);
+    console.log('9. Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (response.ok) {
-      const result = await response.json();
-      console.log('Success:', result);
+      const responseData = await response.json();
+      console.log('10. Success! Response data:', responseData);
+      console.log('11. Image path in response:', responseData.image);
+      
       await fetchAnnouncements();
       setShowAddForm(false);
       resetForm();
       alert('Announcement created successfully!');
     } else {
       const errorText = await response.text();
-      console.error('Failed to create announcement:', response.status, errorText);
-      alert('Failed to create announcement: ' + errorText);
+      console.error('Failed to create announcement. Status:', response.status);
+      console.error('Error response:', errorText);
+
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error('Error details:', errorJson);
+        alert('Failed to create announcement: ' + (errorJson.message || errorText));
+      } catch {
+        alert('Failed to create announcement: ' + errorText);
+      }
     }
   } catch (error) {
     console.error('Error creating announcement:', error);
@@ -174,20 +264,66 @@ const handleEditAnnouncement = async (e) => {
   try {
     const token = localStorage.getItem('authToken');
     
+    console.log('=== DEBUG: Starting announcement update ===');
+    console.log('1. Editing announcement ID:', selectedAnnouncement.id);
+    console.log('2. Form data:', formData);
+    console.log('3. Image file:', imageFile ? {
+      name: imageFile.name,
+      type: imageFile.type,
+      size: imageFile.size
+    } : 'No new image selected');
+    console.log('4. Existing image preview:', imagePreview);
+
+    const formDataToSend = new FormData();
+    formDataToSend.append('title', formData.title);
+    formDataToSend.append('content', formData.content);
+    formDataToSend.append('full_content', formData.full_content);
+    formDataToSend.append('priority', formData.priority);
+    
+    // Send tags as individual form fields with the same name
+    const tagsArray = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+    console.log('5. Tags array:', tagsArray);
+    tagsArray.forEach(tag => {
+      formDataToSend.append('tags[]', tag);
+    });
+    
+    formDataToSend.append('_method', 'PUT');
+    
+    if (imageFile) {
+      console.log('6. Appending new image file to FormData');
+      formDataToSend.append('image', imageFile);
+    } else {
+      console.log('6. No new image file to append');
+    }
+
+    // Log FormData contents
+    console.log('7. FormData contents:');
+    for (let pair of formDataToSend.entries()) {
+      if (pair[0] === 'image') {
+        console.log(`   - ${pair[0]}: [File: ${pair[1].name}]`);
+      } else if (pair[0].startsWith('tags[]')) {
+        console.log(`   - ${pair[0]}: ${pair[1]}`);
+      } else {
+        console.log(`   - ${pair[0]}: ${pair[1]}`);
+      }
+    }
+
     const response = await fetch(`http://localhost:8000/api/announcements/${selectedAnnouncement.id}`, {
-      method: 'PUT',
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        ...formData,
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
-      }),
+      body: formDataToSend,
     });
 
+    console.log('8. Update response status:', response.status);
+
     if (response.ok) {
+      const responseData = await response.json();
+      console.log('9. Update success! Response data:', responseData);
+      console.log('10. Updated image path:', responseData.image);
+      
       await fetchAnnouncements();
       setShowEditForm(false);
       setShowReadMore(false);
@@ -204,48 +340,55 @@ const handleEditAnnouncement = async (e) => {
   }
 };
 
-const handleDeleteAnnouncement = async (id) => {
-  if (!window.confirm('Are you sure you want to delete this announcement?')) {
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem('authToken');
-    
-    const response = await fetch(`http://localhost:8000/api/announcements/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (response.ok) {
-      await fetchAnnouncements();
-      alert('Announcement deleted successfully!');
-    } else {
-      const errorText = await response.text();
-      console.error('Failed to delete announcement:', response.status, errorText);
-      alert('Failed to delete announcement: ' + errorText);
+  const handleDeleteAnnouncement = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this announcement?')) {
+      return;
     }
-  } catch (error) {
-    console.error('Error deleting announcement:', error);
-    alert('Error deleting announcement: ' + error.message);
-  }
-};
 
-  const handleEditClick = (announcement) => {
-    setSelectedAnnouncement(announcement);
-    setFormData({
-      title: announcement.title,
-      content: announcement.content,
-      full_content: announcement.full_content || announcement.content,
-      priority: announcement.priority || 'medium',
-      tags: announcement.tags ? announcement.tags.map(tag => tag.name).join(', ') : ''
-    });
-    setShowEditForm(true);
-    setShowReadMore(false);
+    try {
+      const token = localStorage.getItem('authToken');
+      
+      const response = await fetch(`http://localhost:8000/api/announcements/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        await fetchAnnouncements();
+        alert('Announcement deleted successfully!');
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to delete announcement:', response.status, errorText);
+        alert('Failed to delete announcement: ' + errorText);
+      }
+    } catch (error) {
+      console.error('Error deleting announcement:', error);
+      alert('Error deleting announcement: ' + error.message);
+    }
   };
+
+const handleEditClick = (announcement) => {
+  setSelectedAnnouncement(announcement);
+  setFormData({
+    title: announcement.title,
+    content: announcement.content,
+    full_content: announcement.full_content || announcement.content,
+    priority: announcement.priority || 'medium',
+    tags: announcement.tags ? announcement.tags.map(tag => tag.name).join(', ') : ''
+  });
+  
+  // Use 'image' instead of 'image_url'
+  if (announcement.image) {
+    setImagePreview(`http://localhost:8000/storage/${announcement.image}`);
+  } else {
+    setImagePreview(null);
+  }
+  setShowEditForm(true);
+  setShowReadMore(false);
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -263,6 +406,8 @@ const handleDeleteAnnouncement = async (id) => {
       priority: 'medium',
       tags: ''
     });
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   if (loading) {
@@ -317,11 +462,9 @@ const handleDeleteAnnouncement = async (id) => {
       {/* Announcements Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAnnouncements.map((announcement) => (
-          <Card key={announcement.id} className="hover:shadow-lg transition-all duration-300 group">
-            <div className="relative overflow-hidden rounded-t-lg">
-              <div className="w-full">
-                {getPlaceholderImage(announcement)}
-              </div>
+          <Card key={announcement.id} className="hover:shadow-lg transition-all duration-300 group overflow-hidden">
+            <div className="relative overflow-hidden rounded-t-lg bg-gray-100">
+              {getAnnouncementImage(announcement)}
               <Badge className={`absolute top-3 right-3 border ${getPriorityColor(announcement.priority)}`}>
                 {(announcement.priority || 'medium').toUpperCase()}
               </Badge>
@@ -420,6 +563,35 @@ const handleDeleteAnnouncement = async (id) => {
             </div>
             
             <form onSubmit={showAddForm ? handleAddAnnouncement : handleEditAnnouncement} className="p-6 space-y-4">
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Announcement Image
+                </label>
+                <div className="flex items-center space-x-4">
+                  <div className="w-32 h-32 bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="h-8 w-8 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Upload an image for the announcement (JPG, PNG, GIF)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Title *
@@ -532,6 +704,21 @@ const handleDeleteAnnouncement = async (id) => {
             </div>
             
             <div className="p-6 space-y-6">
+            {/* Announcement Image in Modal */}
+            {selectedAnnouncement.image && (
+              <div className="rounded-lg overflow-hidden">
+                <img
+                  src={`http://localhost:8000/storage/${selectedAnnouncement.image}`}
+                  alt={selectedAnnouncement.title}
+                  className="w-full max-h-96 object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+              )}
+
               {/* Header Info */}
               <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-2">

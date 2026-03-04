@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building, Search, Calendar, MapPin, Users, Plus, Edit, Trash2, X, Hammer, Wrench } from "lucide-react";
+import { Building, Search, Calendar, MapPin, Users, Plus, Edit, Trash2, X, Hammer, Wrench, Image as ImageIcon, CheckCircle } from "lucide-react";
 
 const AdminProjects = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -15,6 +15,14 @@ const AdminProjects = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewingProject, setViewingProject] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [postedProjects, setPostedProjects] = useState(new Set());
+  const [isCheckingAccomplishments, setIsCheckingAccomplishments] = useState(false);
+  
+  // Use ref to track if we've already processed auto-completion for a project
+  const processedAutoCompleteRef = useRef(new Set());
+  
   const userRole = localStorage.getItem('userRole') || 'resident';
   const authToken = localStorage.getItem('authToken');
 
@@ -31,38 +39,222 @@ const AdminProjects = () => {
     category: 'Infrastructure'
   });
 
+  // Load posted projects from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('postedProjects');
+    if (saved) {
+      try {
+        setPostedProjects(new Set(JSON.parse(saved)));
+      } catch (e) {
+        console.error('Error loading posted projects:', e);
+      }
+    }
+  }, []);
+
+  // Save to localStorage whenever postedProjects changes
+  useEffect(() => {
+    localStorage.setItem('postedProjects', JSON.stringify([...postedProjects]));
+  }, [postedProjects]);
+
+  // Fetch accomplishments to check which projects are already posted
+  const fetchAccomplishmentsForTracking = async () => {
+    try {
+      setIsCheckingAccomplishments(true);
+      const response = await fetch('http://localhost:8000/api/accomplishments', {
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const accomplishments = await response.json();
+        
+        // Create a Set of project titles that already have accomplishments
+        const postedTitles = new Set(
+          accomplishments.map(acc => acc.title)
+        );
+        
+        console.log('Fetched accomplishments:', [...postedTitles]);
+        
+        // Merge with existing postedProjects
+        setPostedProjects(prev => {
+          const merged = new Set([...prev, ...postedTitles]);
+          return merged;
+        });
+        
+        return postedTitles;
+      }
+      return new Set();
+    } catch (error) {
+      console.error('Error fetching accomplishments for tracking:', error);
+      return new Set();
+    } finally {
+      setIsCheckingAccomplishments(false);
+    }
+  };
+
+  // Function to create accomplishment from completed project
+  const createAccomplishmentFromProject = async (project) => {
+    try {
+      // Double-check with current postedProjects state
+      if (postedProjects.has(project.title)) {
+        console.log(`Project "${project.title}" already has an accomplishment, skipping...`);
+        return false;
+      }
+
+      const authToken = localStorage.getItem('authToken');
+      
+      // Create FormData for accomplishment
+      const formData = new FormData();
+      formData.append('title', project.title);
+      formData.append('description', project.full_description || project.description);
+      formData.append('location', project.location);
+      formData.append('date_completed', new Date().toISOString().split('T')[0]); // Today's date
+      formData.append('is_published', true);
+      formData.append('project_id', project.id); // Send project_id to link the accomplishment
+
+      const response = await fetch('http://localhost:8000/api/accomplishments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Accept': 'application/json',
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        const accomplishment = await response.json();
+        console.log('Accomplishment created successfully:', accomplishment);
+        
+        // Add to posted tracking
+        setPostedProjects(prev => new Set([...prev, project.title]));
+        
+        // Show notification (only once)
+        alert(`✅ Project "${project.title}" has been automatically added to accomplishments with image!`);
+        
+        return true;
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to create accomplishment:', response.status, errorText);
+        
+        // Check for 422 (validation error) - might mean it already exists
+        if (response.status === 422) {
+          // Add to tracking anyway to prevent future attempts
+          setPostedProjects(prev => new Set([...prev, project.title]));
+        }
+        
+        return false;
+      }
+    } catch (error) {
+      console.error('Error creating accomplishment from project:', error);
+      return false;
+    }
+  };
+  
   // Fetch projects from API
   const fetchProjects = async () => {
     try {
+      setLoading(true);
+      
+      // First, fetch accomplishments to know what's already posted
+      const postedTitles = await fetchAccomplishmentsForTracking();
+
       const response = await fetch('http://localhost:8000/api/projects', {
         headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
         let data = await response.json();
+        
+        // Validate and fix any inconsistent data
+        data = data.map(project => {
+          // Ensure progress matches status
+          if (project.status === 'completed' && project.progress !== 100) {
+            project.progress = 100;
+          } else if (project.status === 'planning' && project.progress > 0) {
+            // Optionally adjust progress for planning phase
+            // project.progress = 0;
+          } else if (project.status === 'ongoing' && (project.progress === 0 || project.progress === 100)) {
+            // If ongoing but progress is 0 or 100, adjust accordingly
+            if (project.progress === 100) {
+              project.status = 'completed';
+            }
+          }
+          return project;
+        });
 
         const now = new Date();
+        const projectsToUpdate = [];
+
+        // First pass: identify projects that need auto-completion
         for (let project of data) {
           // Check if project has passed end date and is not completed
           if (project.status !== 'completed' && new Date(project.end_date) < now) {
-            // Update status and progress locally
-            project.status = 'completed';
-            project.progress = 100;
+            projectsToUpdate.push(project);
+          }
+        }
 
-            // Update in backend
-            try {
-              await fetch(`http://localhost:8000/api/projects/${project.id}`, {
-                method: 'PUT',
-                headers: {
-                  'Authorization': `Bearer ${authToken}`,
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-                },
-                body: JSON.stringify({ ...project, status: 'completed', progress: 100 }),
-              });
-            } catch (err) {
-              console.error(`Failed to auto-complete project ${project.id}:`, err);
+        // Second pass: update projects and create accomplishments
+        for (let project of projectsToUpdate) {
+          const oldStatus = project.status;
+          
+          // Check if this project has already been processed for auto-completion
+          const projectKey = `${project.id}-${project.title}`;
+          if (processedAutoCompleteRef.current.has(projectKey)) {
+            console.log(`Project ${project.title} already processed for auto-completion, skipping...`);
+            continue;
+          }
+          
+          // Update in backend
+          try {
+            const updateResponse = await fetch(`http://localhost:8000/api/projects/${project.id}`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({ 
+                title: project.title,
+                description: project.description,
+                full_description: project.full_description || '',
+                start_date: project.start_date,
+                end_date: project.end_date,
+                status: 'completed',
+                location: project.location,
+                beneficiaries: project.beneficiaries,
+                progress: 100,
+                category: project.category,
+                _method: 'PUT'
+              }),
+            });
+
+            if (updateResponse.ok) {
+              // Mark as processed
+              processedAutoCompleteRef.current.add(projectKey);
+              
+              // Update the project in our local array
+              const updatedProject = { ...project, status: 'completed', progress: 100 };
+              
+              // Find and replace in data array
+              const index = data.findIndex(p => p.id === project.id);
+              if (index !== -1) {
+                data[index] = updatedProject;
+              }
+              
+              // Only create accomplishment if:
+              // 1. Status changed to completed
+              // 2. Not already posted to accomplishments
+              if (oldStatus !== 'completed' && !postedTitles.has(project.title) && !postedProjects.has(project.title)) {
+                console.log(`Creating accomplishment for auto-completed project: ${project.title}`);
+                // Use setTimeout to avoid blocking and prevent race conditions
+                setTimeout(() => {
+                  createAccomplishmentFromProject(updatedProject);
+                }, 1000);
+              } else {
+                console.log(`Skipping accomplishment for ${project.title} - already posted or not newly completed`);
+              }
             }
+          } catch (err) {
+            console.error(`Failed to auto-complete project ${project.id}:`, err);
           }
         }
 
@@ -77,9 +269,13 @@ const AdminProjects = () => {
     }
   };
 
-
   useEffect(() => {
     fetchProjects();
+    
+    // Cleanup function
+    return () => {
+      processedAutoCompleteRef.current.clear();
+    };
   }, []);
 
   const filteredProjects = projects.filter((project) => {
@@ -122,24 +318,54 @@ const AdminProjects = () => {
     }
   };
 
-  const getPlaceholderImage = (category, title) => {
+  const getProjectImage = (project) => {
+    if (project.image) {
+      const imageUrl = `http://localhost:8000/storage/${project.image}`;
+      return (
+        <img
+          src={imageUrl}
+          alt={project.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.style.display = 'none';
+            const parent = e.target.parentNode;
+            const placeholder = document.createElement('div');
+            placeholder.className = `w-full h-full ${getPlaceholderColor(project)} flex items-center justify-center`;
+            parent.appendChild(placeholder);
+          }}
+        />
+      );
+    }
+    return getPlaceholderContent(project);
+  };
+
+  const getPlaceholderColor = (project) => {
     const colors = [
       'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
       'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
     ];
-    const color = colors[title.length % colors.length];
+    return colors[project.title.length % colors.length];
+  };
+
+  const getPlaceholderContent = (project) => {
+    const colors = [
+      'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
+      'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
+    ];
+    const color = colors[project.title.length % colors.length];
     
     let IconComponent = Building;
     
-    if (category === 'Infrastructure') {
+    if (project.category === 'Infrastructure') {
       IconComponent = Hammer;
-    } else if (category === 'Environment') {
+    } else if (project.category === 'Environment') {
       IconComponent = Wrench;
-    } else if (category === 'Education') {
+    } else if (project.category === 'Education') {
       IconComponent = Users;
-    } else if (category === 'Sports') {
+    } else if (project.category === 'Sports') {
       IconComponent = MapPin;
-    } else if (category === 'Health') {
+    } else if (project.category === 'Health') {
       IconComponent = Users;
     }
     
@@ -147,27 +373,50 @@ const AdminProjects = () => {
       <div className={`w-full h-full ${color} flex items-center justify-center`}>
         <div className="text-center p-4">
           <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-          <span className="text-gray-500 text-sm">Project Image</span>
+          <span className="text-gray-500 text-sm">{project.title}</span>
         </div>
       </div>
     );
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleAddProject = async (e) => {
     e.preventDefault();
     try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', formData.title);
+      formDataToSend.append('description', formData.description);
+      formDataToSend.append('full_description', formData.full_description);
+      formDataToSend.append('start_date', formData.start_date);
+      formDataToSend.append('end_date', formData.end_date);
+      formDataToSend.append('status', formData.status);
+      formDataToSend.append('location', formData.location);
+      formDataToSend.append('beneficiaries', formData.beneficiaries);
+      formDataToSend.append('progress', formData.progress);
+      formDataToSend.append('category', formData.category);
+      
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      }
+
       const response = await fetch('http://localhost:8000/api/projects', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          beneficiaries: parseInt(formData.beneficiaries),
-          progress: parseInt(formData.progress),
-        }),
+        body: formDataToSend,
       });
 
       if (response.ok) {
@@ -187,38 +436,65 @@ const AdminProjects = () => {
   };
 
   const handleEditProject = (project) => {
-  setEditingProject(project);
-  setFormData({
-    title: project.title,
-    description: project.description,
-    full_description: project.full_description || '',
-    start_date: project.start_date,
-    end_date: project.end_date,    
-    status: project.status,
-    location: project.location,
-    beneficiaries: project.beneficiaries.toString(),
-    progress: project.progress.toString(),
-    category: project.category
-  });
-  setShowProjectForm(true);
-};
+    setEditingProject(project);
+    
+    const formatDateForInput = (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
+    setFormData({
+      title: project.title,
+      description: project.description,
+      full_description: project.full_description || '',
+      start_date: formatDateForInput(project.start_date),
+      end_date: formatDateForInput(project.end_date),    
+      status: project.status,
+      location: project.location,
+      beneficiaries: project.beneficiaries.toString(),
+      progress: project.progress.toString(),
+      category: project.category
+    });
+    
+    if (project.image) {
+      setImagePreview(`http://localhost:8000/storage/${project.image}`);
+    }
+    setShowProjectForm(true);
+  };
 
   const handleUpdateProject = async (e) => {
     e.preventDefault();
     try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', formData.title);
+      formDataToSend.append('description', formData.description);
+      formDataToSend.append('full_description', formData.full_description);
+      formDataToSend.append('start_date', formData.start_date);
+      formDataToSend.append('end_date', formData.end_date);
+      formDataToSend.append('status', formData.status);
+      formDataToSend.append('location', formData.location);
+      formDataToSend.append('beneficiaries', formData.beneficiaries);
+      formDataToSend.append('progress', formData.progress);
+      formDataToSend.append('category', formData.category);
+      formDataToSend.append('_method', 'PUT');
+      
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      }
+
       const response = await fetch(`http://localhost:8000/api/projects/${editingProject.id}`, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          beneficiaries: parseInt(formData.beneficiaries),
-          progress: parseInt(formData.progress),
-        }),
+        body: formDataToSend,
       });
 
       if (response.ok) {
@@ -266,59 +542,169 @@ const AdminProjects = () => {
     }
   };
 
-  const handleProgressChange = async (id, newProgress) => {
-    try {
-      const project = projects.find(p => p.id === id);
-      const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          ...project,
-          progress: parseInt(newProgress),
-        }),
-      });
-
-      if (response.ok) {
-        await fetchProjects();
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update project progress:', response.status, errorText);
-      }
-    } catch (error) {
-      console.error('Error updating project progress:', error);
+const handleProgressChange = async (id, newProgress) => {
+  try {
+    const project = projects.find(p => p.id === id);
+    
+    // Convert progress to number and ensure it's valid
+    const progressValue = parseInt(newProgress);
+    if (isNaN(progressValue) || progressValue < 0 || progressValue > 100) {
+      alert('Progress must be a number between 0 and 100');
+      return;
     }
-  };
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      const project = projects.find(p => p.id === id);
-      const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          ...project,
-          status: newStatus,
-        }),
-      });
-
-      if (response.ok) {
-        await fetchProjects();
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update project status:', response.status, errorText);
+    
+    // Determine status based on progress
+    let newStatus = project.status;
+    if (progressValue === 100) {
+      newStatus = 'completed';
+    } else if (progressValue > 0 && progressValue < 100) {
+      // Only change to ongoing if it's not already completed or cancelled
+      if (project.status !== 'cancelled' && project.status !== 'completed') {
+        newStatus = 'ongoing';
       }
-    } catch (error) {
-      console.error('Error updating project status:', error);
+    } else if (progressValue === 0) {
+      if (project.status !== 'cancelled' && project.status !== 'completed') {
+        newStatus = 'planning';
+      }
     }
-  };
+    
+    // Send update with all required fields
+    const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        title: project.title,
+        description: project.description,
+        full_description: project.full_description || '',
+        start_date: project.start_date,
+        end_date: project.end_date,
+        status: newStatus,
+        location: project.location,
+        beneficiaries: project.beneficiaries,
+        progress: progressValue,
+        category: project.category,
+        _method: 'PUT'
+      }),
+    });
+
+    if (response.ok) {
+      // Check if status changed to completed and we need to create accomplishment
+      if (newStatus === 'completed' && project.status !== 'completed' && !postedProjects.has(project.title)) {
+        const updatedProject = { 
+          ...project, 
+          status: newStatus, 
+          progress: progressValue 
+        };
+        
+        // Small delay to ensure the project is updated first
+        setTimeout(() => {
+          createAccomplishmentFromProject(updatedProject);
+        }, 500);
+      }
+      
+      // If status changed from completed to something else, remove from accomplishments
+      if (project.status === 'completed' && newStatus !== 'completed') {
+        // Remove from postedProjects set
+        setPostedProjects(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(project.title);
+          return newSet;
+        });
+        
+        // Optional: You might want to delete the accomplishment from the database
+        // You'll need to implement this in your backend
+        alert(`Project "${project.title}" is no longer completed. The accomplishment will need to be manually updated.`);
+      }
+      
+      await fetchProjects();
+    } else {
+      const errorText = await response.text();
+      console.error('Failed to update project progress:', response.status, errorText);
+      alert('Failed to update progress. Please try again.');
+    }
+  } catch (error) {
+    console.error('Error updating project progress:', error);
+  }
+};
+
+const handleStatusChange = async (id, newStatus) => {
+  try {
+    const project = projects.find(p => p.id === id);
+    const oldStatus = project.status;
+    
+    // Determine progress based on status
+    let newProgress = project.progress;
+    if (newStatus === 'completed') {
+      newProgress = 100;
+    } else if (newStatus === 'planning') {
+      newProgress = 0;
+    } else if (newStatus === 'cancelled') {
+      // Keep progress as is or set to 0? I'll keep as is
+      newProgress = project.progress;
+    }
+    
+    // Send update with all required fields
+    const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        title: project.title,
+        description: project.description,
+        full_description: project.full_description || '',
+        start_date: project.start_date,
+        end_date: project.end_date,
+        status: newStatus,
+        location: project.location,
+        beneficiaries: project.beneficiaries,
+        progress: newProgress,
+        category: project.category,
+        _method: 'PUT'
+      }),
+    });
+
+    if (response.ok) {
+      // If status changed to 'completed' and it wasn't completed before
+      if (newStatus === 'completed' && oldStatus !== 'completed' && !postedProjects.has(project.title)) {
+        const updatedProject = { 
+          ...project, 
+          status: newStatus, 
+          progress: 100 
+        };
+        await createAccomplishmentFromProject(updatedProject);
+      }
+      
+      // If status changed from 'completed' to something else
+      if (oldStatus === 'completed' && newStatus !== 'completed') {
+        // Remove from postedProjects set
+        setPostedProjects(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(project.title);
+          return newSet;
+        });
+        
+        // Optional: Delete the accomplishment from the database
+        // You'll need to implement this in your backend
+        alert(`Project "${project.title}" is no longer completed. The accomplishment has been removed from tracking.`);
+      }
+      
+      await fetchProjects();
+    } else {
+      const errorText = await response.text();
+      console.error('Failed to update project status:', response.status, errorText);
+      alert('Failed to update status. Please try again.');
+    }
+  } catch (error) {
+    console.error('Error updating project status:', error);
+  }
+};
 
   const resetForm = () => {
     setFormData({
@@ -333,6 +719,8 @@ const AdminProjects = () => {
       progress: '0',
       category: 'Infrastructure'
     });
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   if (loading) {
@@ -361,17 +749,19 @@ const AdminProjects = () => {
         </div>
 
         {(userRole === 'admin' || userRole === 'staff') && (
-          <Button 
-            onClick={() => {
-              setEditingProject(null);
-              setShowProjectForm(true);
-              resetForm();
-            }}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => {
+                setEditingProject(null);
+                setShowProjectForm(true);
+                resetForm();
+              }}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          </div>
         )}
       </div>
 
@@ -438,25 +828,20 @@ const AdminProjects = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredProjects.map((project) => (
           <Card key={project.id} className="hover:shadow-lg transition-all duration-300 group">
-            <div className="relative overflow-hidden rounded-t-lg aspect-video">
-              {project.image ? (
-                <img
-                  src={project.image}
-                  alt={project.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'block';
-                  }}
-                />
-              ) : null}
-              <div className={`w-full h-full ${!project.image ? 'block' : 'hidden'}`}>
-                {getPlaceholderImage(project.category, project.title)}
-              </div>
+            <div className="relative overflow-hidden rounded-t-lg aspect-video bg-gray-100">
+              {getProjectImage(project)}
               
               <Badge className={`absolute top-3 right-3 border ${getStatusColor(project.status)}`}>
                 {getStatusText(project.status)}
               </Badge>
+
+              {/* Show if already posted to accomplishments */}
+              {project.status === 'completed' && postedProjects.has(project.title) && (
+                <Badge className="absolute bottom-3 left-3 bg-purple-500 text-white border-0">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Posted to Accomplishments
+                </Badge>
+              )}
             </div>
 
             <CardHeader>
@@ -516,7 +901,7 @@ const AdminProjects = () => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  <span>{new Date(project.start_date).toLocaleDateString()}</span>
+                  <span>{project.start_date ? new Date(project.start_date).toLocaleDateString() : 'Not set'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-4 w-4" />
@@ -524,7 +909,7 @@ const AdminProjects = () => {
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  <span>{new Date(project.end_date).toLocaleDateString()}</span>
+                  <span>{project.end_date ? new Date(project.end_date).toLocaleDateString() : 'Not set'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Users className="h-4 w-4" />
@@ -592,6 +977,26 @@ const AdminProjects = () => {
             </div>
 
             <div className="p-6 space-y-4">
+              {/* Project Image in Modal */}
+              <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                {viewingProject.image ? (
+                  <img
+                    src={`http://localhost:8000/storage/${viewingProject.image}`}
+                    alt={viewingProject.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                      e.target.parentNode.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-blue-100"><svg class="h-16 w-16 text-gray-400" ...></svg></div>';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-blue-100">
+                    <Building className="h-16 w-16 text-gray-400" />
+                  </div>
+                )}
+              </div>
+
               <div>
                 <h3 className="font-semibold text-gray-800">Title</h3>
                 <p className="text-gray-700">{viewingProject.title}</p>
@@ -604,10 +1009,10 @@ const AdminProjects = () => {
 
               <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                 <div>
-                  <strong>Start Date:</strong> {new Date(viewingProject.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  <strong>Start Date:</strong> {viewingProject.start_date ? new Date(viewingProject.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Not set'}
                 </div>
                 <div>
-                  <strong>End Date:</strong> {new Date(viewingProject.end_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  <strong>End Date:</strong> {viewingProject.end_date ? new Date(viewingProject.end_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Not set'}
                 </div>
                 <div>
                   <strong>Location:</strong> {viewingProject.location}
@@ -654,7 +1059,10 @@ const AdminProjects = () => {
                 {editingProject ? 'Edit Project' : 'Add New Project'}
               </h2>
               <button
-                onClick={() => setShowProjectForm(false)}
+                onClick={() => {
+                  setShowProjectForm(false);
+                  resetForm();
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-6 w-6" />
@@ -662,6 +1070,35 @@ const AdminProjects = () => {
             </div>
             
             <form onSubmit={editingProject ? handleUpdateProject : handleAddProject} className="p-6 space-y-4">
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Project Image
+                </label>
+                <div className="flex items-center space-x-4">
+                  <div className="w-32 h-32 bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="h-8 w-8 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Upload an image for the project (JPG, PNG, GIF)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Project Title *
@@ -812,7 +1249,10 @@ const AdminProjects = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowProjectForm(false)}
+                  onClick={() => {
+                    setShowProjectForm(false);
+                    resetForm();
+                  }}
                   className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
                 >
                   Cancel

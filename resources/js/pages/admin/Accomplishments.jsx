@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Users, Loader2, Plus, X, Megaphone, Edit, Trash2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { Calendar, MapPin, Users, Loader2, Plus, X, Edit, Trash2, CheckCircle, XCircle, RefreshCw, FileText, Image as ImageIcon } from "lucide-react";
 
 const AdminAccomplishments = () => {
   const [accomplishments, setAccomplishments] = useState([]);
@@ -19,9 +19,10 @@ const AdminAccomplishments = () => {
     location: "",
     date_completed: "",
     photo: null,
-    is_published: true
+    photo_preview: null,
+    is_published: true,
+    project_id: null // Track if this came from a project
   });
-
 
   // Get auth token from localStorage
   const getAuthToken = () => {
@@ -65,6 +66,17 @@ const AdminAccomplishments = () => {
 
   useEffect(() => {
     fetchAccomplishments();
+    
+    // Listen for project completion events (optional - for real-time updates)
+    const handleProjectCompleted = () => {
+      fetchAccomplishments();
+    };
+    
+    window.addEventListener('projectCompleted', handleProjectCompleted);
+    
+    return () => {
+      window.removeEventListener('projectCompleted', handleProjectCompleted);
+    };
   }, []);
 
   const handleInputChange = (e) => {
@@ -76,10 +88,70 @@ const AdminAccomplishments = () => {
   };
 
   const handleFileChange = (e) => {
-    setFormData(prev => ({
-      ...prev,
-      photo: e.target.files[0]
-    }));
+    const file = e.target.files[0];
+    if (file) {
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({
+          ...prev,
+          photo: file,
+          photo_preview: reader.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDeleteAccomplishment = async (id, silent = false) => {
+    if (!silent && !confirm('Are you sure you want to delete this accomplishment? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const authToken = getAuthToken();
+      const csrfToken = getCsrfToken();
+      
+      const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken;
+      }
+
+      const response = await fetch(`/api/accomplishments/${id}`, {
+        method: 'DELETE',
+        headers: headers,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userRole');
+          window.location.href = '/admin/login';
+          return;
+        }
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      setAccomplishments(prev => prev.filter(item => item.id !== id));
+      
+      if (!silent) {
+        alert('Accomplishment deleted successfully!');
+      }
+    } catch (err) {
+      console.error('Error deleting accomplishment:', err);
+      if (!silent) {
+        alert(`Error: ${err.message}`);
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -94,8 +166,14 @@ const AdminAccomplishments = () => {
       submitData.append('location', formData.location);
       submitData.append('date_completed', formData.date_completed);
       submitData.append('is_published', formData.is_published);
+      
+      // Handle photo upload - only if user selected a new file
       if (formData.photo) {
         submitData.append('photo', formData.photo);
+      }
+      
+      if (formData.project_id) {
+        submitData.append('project_id', formData.project_id);
       }
 
       const authToken = getAuthToken();
@@ -178,110 +256,11 @@ const AdminAccomplishments = () => {
       location: accomplishment.location || "",
       date_completed: accomplishment.date_completed?.split('T')[0] || "",
       photo: null,
-      is_published: accomplishment.is_published !== false
+      photo_preview: accomplishment.photo ? `/storage/${accomplishment.photo}` : null,
+      is_published: accomplishment.is_published !== false,
+      project_id: accomplishment.project_id || null
     });
     setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this accomplishment? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const authToken = getAuthToken();
-      const csrfToken = getCsrfToken();
-      
-      const headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      };
-
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      if (csrfToken) {
-        headers['X-CSRF-TOKEN'] = csrfToken;
-      }
-
-      const response = await fetch(`/api/accomplishments/${id}`, {
-        method: 'DELETE',
-        headers: headers,
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('userRole');
-          window.location.href = '/admin/login';
-          return;
-        }
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      setAccomplishments(prev => prev.filter(item => item.id !== id));
-      alert('Accomplishment deleted successfully!');
-    } catch (err) {
-      console.error('Error deleting accomplishment:', err);
-      alert(`Error: ${err.message}`);
-    }
-  };
-
-  const handlePublishToggle = async (id, currentStatus) => {
-    try {
-      const authToken = localStorage.getItem("authToken");
-      const csrfToken = document
-        .querySelector('meta[name="csrf-token"]')
-        ?.getAttribute("content");
-
-      const headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-      };
-
-      if (authToken) {
-        headers["Authorization"] = `Bearer ${authToken}`;
-      }
-
-      if (csrfToken) {
-        headers["X-CSRF-TOKEN"] = csrfToken;
-      }
-
-      const response = await fetch(`/api/accomplishments/${id}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          is_published: !currentStatus,
-          _method: "PUT",
-        }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("userRole");
-          window.location.href = "/admin/login";
-          return;
-        }
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      const updatedAccomplishment = await response.json();
-
-      // ✅ Update UI instantly
-      setAccomplishments((prev) =>
-        prev.map((item) =>
-          item.id === id ? updatedAccomplishment : item
-        )
-      );
-
-    } catch (error) {
-      console.error("Error toggling publish status:", error);
-      alert("Failed to update publish status. Please try again.");
-    }
   };
 
   const resetForm = () => {
@@ -291,7 +270,9 @@ const AdminAccomplishments = () => {
       location: "",
       date_completed: "",
       photo: null,
-      is_published: true
+      photo_preview: null,
+      is_published: true,
+      project_id: null
     });
     setEditingId(null);
     setShowForm(false);
@@ -319,22 +300,11 @@ const AdminAccomplishments = () => {
     return (
       <div className={`w-full h-full ${color} flex items-center justify-center`}>
         <div className="text-center p-4">
-          <Users className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-          <span className="text-gray-500 text-sm">Project Image</span>
+          <ImageIcon className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+          <span className="text-gray-500 text-sm">No Image</span>
         </div>
       </div>
     );
-  };
-
-  // Get badge color based on announcement type
-  const getAnnouncementBadge = (type) => {
-    const styles = {
-      success: "bg-green-100 text-green-800 border-green-200",
-      info: "bg-blue-100 text-blue-800 border-blue-200",
-      warning: "bg-yellow-100 text-yellow-800 border-yellow-200",
-      default: "bg-gray-100 text-gray-800 border-gray-200"
-    };
-    return styles[type] || styles.default;
   };
 
   if (loading) {
@@ -357,10 +327,10 @@ const AdminAccomplishments = () => {
           <div className="text-center">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 max-w-md mx-auto">
               <h3 className="text-xl font-semibold text-yellow-800 mb-2">
-                Temporary Information Display
+                Error Loading Data
               </h3>
               <p className="text-yellow-700">
-                Showing sample accomplishments while we update our live data.
+                {error}
               </p>
               <Button 
                 className="mt-4"
@@ -385,11 +355,11 @@ const AdminAccomplishments = () => {
             Admin Accomplishments
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Create, edit, and manage barangay accomplishments and projects. 
-            Published items will be visible to the public.
+            Create, edit, and manage barangay accomplishments. 
+            Accomplishments from completed projects are automatically added.
           </p>
 
-          {/* Add New Accomplishment Button */}
+          {/* Action Buttons */}
           <div className="mt-8">
             <Button
               onClick={() => setShowForm(true)}
@@ -413,7 +383,7 @@ const AdminAccomplishments = () => {
                 {accomplishments.length}
               </div>
               <div className="text-gray-600 font-medium">
-                Total Projects
+                Total Accomplishments
               </div>
             </CardContent>
           </Card>
@@ -435,13 +405,13 @@ const AdminAccomplishments = () => {
           <Card className="bg-white/80 backdrop-blur-sm border-yellow-200 shadow-lg">
             <CardContent className="p-6 text-center">
               <div className="bg-yellow-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <XCircle className="h-8 w-8 text-yellow-600" />
+                <FileText className="h-8 w-8 text-yellow-600" />
               </div>
               <div className="text-3xl font-bold text-yellow-600 mb-2">
-                {accomplishments.filter(a => a.is_published === false).length}
+                {accomplishments.filter(a => a.project_id).length}
               </div>
               <div className="text-gray-600 font-medium">
-                Draft
+                From Projects
               </div>
             </CardContent>
           </Card>
@@ -527,12 +497,27 @@ const AdminAccomplishments = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Photo
                       </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileChange}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                      <div className="flex items-center space-x-4">
+                        {formData.photo_preview && (
+                          <div className="w-20 h-20 rounded-lg overflow-hidden border">
+                            <img 
+                              src={formData.photo_preview} 
+                              alt="Preview" 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = 'https://via.placeholder.com/80?text=No+Image';
+                              }}
+                            />
+                          </div>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex items-center space-x-2">
@@ -547,6 +532,15 @@ const AdminAccomplishments = () => {
                         Publish immediately
                       </label>
                     </div>
+
+                    {formData.project_id && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <p className="text-sm text-blue-700 flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          This accomplishment was automatically created from a completed project
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -596,11 +590,15 @@ const AdminAccomplishments = () => {
         <div className="mb-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Manage Projects
+              Manage Accomplishments
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Review and manage all accomplishments. Use the action buttons to edit, delete, or change publication status.
-            </p>
+            <div className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Review and manage all accomplishments. Items marked with{' '}
+              <Badge className="bg-purple-100 text-purple-800 mx-1 inline-flex items-center">
+                From Project
+              </Badge>{' '}
+              were automatically created from completed projects.
+            </div>
           </div>
 
           {accomplishments.length === 0 ? (
@@ -636,12 +634,13 @@ const AdminAccomplishments = () => {
                         alt={accomplishment.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         onError={(e) => {
+                          e.target.onerror = null;
                           e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'block';
+                          e.target.parentNode.querySelector('.placeholder')?.classList.remove('hidden');
                         }}
                       />
                     ) : null}
-                    <div className={`w-full h-full ${!accomplishment.photo ? 'block' : 'hidden'}`}>
+                    <div className={`w-full h-full ${!accomplishment.photo ? 'block' : 'hidden'} placeholder`}>
                       {getPlaceholderImage(accomplishment.title)}
                     </div>
                     
@@ -658,6 +657,14 @@ const AdminAccomplishments = () => {
                     <Badge className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm text-gray-700 border-0 shadow-lg font-medium">
                       {accomplishment.location || "Various Locations"}
                     </Badge>
+
+                    {/* Project Source Badge */}
+                    {accomplishment.project_id && (
+                      <Badge className="absolute bottom-3 left-3 bg-purple-500 text-white border-0">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        From Project
+                      </Badge>
+                    )}
                   </div>
 
                   <CardHeader className="pb-3">
@@ -668,7 +675,7 @@ const AdminAccomplishments = () => {
 
                   <CardContent className="space-y-4">
                     <p className="text-gray-600 leading-relaxed line-clamp-3">
-                      {accomplishment.description || "No description available for this project."}
+                      {accomplishment.description || "No description available."}
                     </p>
 
                     <div className="flex items-center justify-between pt-3 border-t border-gray-100">
@@ -681,7 +688,28 @@ const AdminAccomplishments = () => {
                     {/* Admin Actions */}
                     <div className="flex justify-between items-center pt-3 border-t border-gray-100">
                       <Button
-                        onClick={() => handlePublishToggle(accomplishment.id, accomplishment.is_published)}
+                        onClick={() => {
+                          const newStatus = !accomplishment.is_published;
+                          fetch(`/api/accomplishments/${accomplishment.id}`, {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${getAuthToken()}`,
+                              'Content-Type': 'application/json',
+                              'X-CSRF-TOKEN': getCsrfToken(),
+                            },
+                            body: JSON.stringify({
+                              is_published: newStatus,
+                              _method: 'PUT'
+                            })
+                          })
+                          .then(res => res.json())
+                          .then(updated => {
+                            setAccomplishments(prev =>
+                              prev.map(a => a.id === updated.id ? updated : a)
+                            );
+                          })
+                          .catch(err => console.error('Error toggling publish:', err));
+                        }}
                         className={`px-3 py-1 rounded text-sm font-medium ${
                           accomplishment.is_published
                             ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
@@ -691,7 +719,6 @@ const AdminAccomplishments = () => {
                         {accomplishment.is_published ? 'Unpublish' : 'Publish'}
                       </Button>
 
-                      
                       <div className="flex gap-2">
                         <Button
                           onClick={() => handleEdit(accomplishment)}
@@ -701,7 +728,7 @@ const AdminAccomplishments = () => {
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
-                          onClick={() => handleDelete(accomplishment.id)}
+                          onClick={() => handleDeleteAccomplishment(accomplishment.id)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                           title="Delete"
                         >
@@ -726,7 +753,7 @@ const AdminAccomplishments = () => {
             })}
           </p>
           <p className="text-gray-400 text-xs mt-2">
-            Manage accomplishments carefully as they represent our barangay's achievements.
+            Accomplishments from projects are automatically synced.
           </p>
         </div>
       </div>

@@ -77,7 +77,64 @@ const Facilities = () => {
     }
   };
 
-  const getPlaceholderImage = (facilityName) => {
+  const getFacilityImage = (facility) => {
+    // If facility has an image, show it
+    if (facility.image) {
+      const imageUrl = `http://localhost:8000/storage/${facility.image}`;
+      return (
+        <img
+          src={imageUrl}
+          alt={facility.name}
+          className="w-full h-48 object-cover"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.style.display = 'none';
+            // Show placeholder on error
+            const parent = e.target.parentNode;
+            const placeholder = document.createElement('div');
+            placeholder.className = `w-full h-48 ${getPlaceholderColor(facility.name)} flex items-center justify-center`;
+            placeholder.innerHTML = getPlaceholderIcon(facility.name);
+            parent.appendChild(placeholder);
+          }}
+        />
+      );
+    }
+    
+    // Otherwise show placeholder
+    return getPlaceholderContent(facility.name);
+  };
+
+  const getPlaceholderColor = (facilityName) => {
+    const colors = [
+      'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
+      'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
+    ];
+    return colors[facilityName.length % colors.length];
+  };
+
+  const getPlaceholderIcon = (facilityName) => {
+    let IconComponent = Building;
+    const nameLower = facilityName.toLowerCase();
+    
+    if (nameLower.includes('hall') || nameLower.includes('multi-purpose')) {
+      IconComponent = Building;
+    } else if (nameLower.includes('sports') || nameLower.includes('complex') || nameLower.includes('court') || nameLower.includes('gym')) {
+      IconComponent = Dumbbell;
+    } else if (nameLower.includes('health') || nameLower.includes('medical') || nameLower.includes('clinic')) {
+      IconComponent = Heart;
+    } else if (nameLower.includes('senior') || nameLower.includes('center') || nameLower.includes('community')) {
+      IconComponent = Home;
+    }
+    
+    return `
+      <div class="text-center p-4">
+        <svg class="h-12 w-12 mx-auto text-gray-400 mb-2" ...></svg>
+        <span class="text-gray-500 text-sm">${facilityName}</span>
+      </div>
+    `;
+  };
+
+  const getPlaceholderContent = (facilityName) => {
     const colors = [
       'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
       'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
@@ -85,14 +142,15 @@ const Facilities = () => {
     const color = colors[facilityName.length % colors.length];
     
     let IconComponent = Building;
+    const nameLower = facilityName.toLowerCase();
     
-    if (facilityName.toLowerCase().includes('hall') || facilityName.toLowerCase().includes('multi-purpose')) {
+    if (nameLower.includes('hall') || nameLower.includes('multi-purpose')) {
       IconComponent = Building;
-    } else if (facilityName.toLowerCase().includes('sports') || facilityName.toLowerCase().includes('complex') || facilityName.toLowerCase().includes('court')) {
+    } else if (nameLower.includes('sports') || nameLower.includes('complex') || nameLower.includes('court') || nameLower.includes('gym')) {
       IconComponent = Dumbbell;
-    } else if (facilityName.toLowerCase().includes('health') || facilityName.toLowerCase().includes('medical') || facilityName.toLowerCase().includes('clinic')) {
+    } else if (nameLower.includes('health') || nameLower.includes('medical') || nameLower.includes('clinic')) {
       IconComponent = Heart;
-    } else if (facilityName.toLowerCase().includes('senior') || facilityName.toLowerCase().includes('center') || facilityName.toLowerCase().includes('community')) {
+    } else if (nameLower.includes('senior') || nameLower.includes('center') || nameLower.includes('community')) {
       IconComponent = Home;
     }
     
@@ -100,7 +158,7 @@ const Facilities = () => {
       <div className={`w-full h-48 ${color} flex items-center justify-center`}>
         <div className="text-center p-4">
           <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-          <span className="text-gray-500 text-sm">Facility Image</span>
+          <span className="text-gray-500 text-sm">{facilityName}</span>
         </div>
       </div>
     );
@@ -165,12 +223,10 @@ const Facilities = () => {
         {/* Facilities Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredFacilities.map((facility) => (
-            <Card key={facility.id} className="hover:shadow-lg transition-all duration-300 group border-0 shadow-md">
-              <div className="relative overflow-hidden rounded-t-lg">
-                <div className="w-full">
-                  {getPlaceholderImage(facility.name)}
-                </div>
-                <div className="absolute top-3 right-3 flex items-center gap-2">
+            <Card key={facility.id} className="hover:shadow-lg transition-all duration-300 group border-0 shadow-md overflow-hidden">
+              <div className="relative overflow-hidden rounded-t-lg h-48 bg-gray-100">
+                {getFacilityImage(facility)}
+                <div className="absolute top-3 right-3 flex items-center gap-2 bg-white/90 backdrop-blur px-2 py-1 rounded-full shadow-md">
                   {getStatusIcon(facility.status)}
                   {getStatusBadge(facility.status)}
                 </div>
@@ -266,20 +322,35 @@ const Facilities = () => {
               </div>
               
               <div className="p-6 space-y-6">
+                {/* Facility Image in Modal */}
+                {selectedFacility.image && (
+                  <div className="rounded-lg overflow-hidden">
+                    <img
+                      src={`http://localhost:8000/storage/${selectedFacility.image}`}
+                      alt={selectedFacility.name}
+                      className="w-full max-h-96 object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Header Info */}
-                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
+                    <MapPin className="h-4 w-4 text-blue-500" />
                     <span className="font-medium">Location:</span>
                     <span>{selectedFacility.location}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
+                    <Users className="h-4 w-4 text-blue-500" />
                     <span className="font-medium">Capacity:</span>
                     <span>{selectedFacility.capacity} people</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
+                    <Clock className="h-4 w-4 text-blue-500" />
                     <span className="font-medium">Hours:</span>
                     <span>{selectedFacility.hours}</span>
                   </div>

@@ -15,20 +15,32 @@ import {
   MapPin,
   Clock,
   CheckCircle,
-  Star,
-  TrendingUp,
   Plus,
   Facebook,
-  Instagram
+  Instagram,
+  Edit,
+  Camera,
+  CalendarDays,
+  Trash2
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import heroImage from "@/assets/sk-hero-banner.jpg";
 import barangayHall from "@/assets/barangayHall.jpg";
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
-
-// StatsCard Component
-const StatsCard = ({ title, value, icon: Icon, description, trend }) => (
+// StatsCard Component (keep for dashboard stats if needed)
+const StatsCard = ({ title, value, icon: Icon, description }) => (
   <Card>
     <CardContent className="p-6">
       <div className="flex items-center justify-between">
@@ -45,71 +57,514 @@ const StatsCard = ({ title, value, icon: Icon, description, trend }) => (
   </Card>
 );
 
-// KagawadSpotlight Component
-const KagawadSpotlight = ({ kagawad }) => (
-  <Card className="lg:col-span-1">
-    <CardHeader>
-      <CardTitle className="flex items-center space-x-2">
-        <Users className="h-5 w-5 text-primary" />
-        <span>Featured Kagawad</span>
-      </CardTitle>
-      <CardDescription>Meet your dedicated public servant</CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-4">
-      <div className="flex items-center space-x-4">
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-          <Users className="h-8 w-8 text-primary" />
+// Edit Kagawad Modal
+const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    position: '',
+    bio: '',
+    contact: '',
+    email: '',
+    address: '',
+    dateStarted: '',
+    photo: null
+  });
+
+  useEffect(() => {
+    if (kagawad) {
+      setFormData({
+        name: kagawad.name || '',
+        position: kagawad.position || '',
+        bio: kagawad.bio || '',
+        contact: kagawad.contact || '',
+        email: kagawad.email || '',
+        address: kagawad.address || '',
+        dateStarted: kagawad.dateStarted || '',
+        photo: kagawad.photo || null
+      });
+    }
+  }, [kagawad]);
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, photo: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = () => {
+    onSave({ ...kagawad, ...formData });
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Kagawad Information</DialogTitle>
+          <DialogDescription>
+            Update the kagawad's details and photo. Click save when you're done.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-6 py-4">
+          {/* Photo Upload */}
+          <div className="space-y-2">
+            <Label>Profile Photo</Label>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-24 rounded-lg overflow-hidden bg-muted">
+                {formData.photo ? (
+                  <img src={formData.photo} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                    <Users className="h-8 w-8 text-primary/50" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="cursor-pointer"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Recommended: Square image, max 2MB
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Basic Information */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter full name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="position">Position</Label>
+              <Input
+                id="position"
+                value={formData.position}
+                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                placeholder="e.g., SK Chairman"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bio">Bio / Description</Label>
+            <Textarea
+              id="bio"
+              value={formData.bio}
+              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+              placeholder="Brief description about the kagawad"
+              rows={3}
+            />
+          </div>
+
+          {/* Contact Information */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="contact">Contact Number</Label>
+              <Input
+                id="contact"
+                value={formData.contact}
+                onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                placeholder="+63 XXX XXX XXXX"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="email@example.com"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="address">Address</Label>
+            <Input
+              id="address"
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              placeholder="Complete address"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dateStarted">Date Started</Label>
+            <Input
+              id="dateStarted"
+              value={formData.dateStarted}
+              onChange={(e) => setFormData({ ...formData, dateStarted: e.target.value })}
+              placeholder="e.g., January 2023"
+            />
+          </div>
         </div>
-        <div>
-          <h4 className="font-semibold">{kagawad.name}</h4>
-          <p className="text-sm text-primary">{kagawad.position}</p>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Save Changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Add Activity Modal
+const AddActivityModal = ({ isOpen, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    title: '',
+    date: new Date().toISOString().split('T')[0],
+    description: ''
+  });
+
+  const handleSubmit = () => {
+    if (formData.title && formData.description) {
+      onSave(formData);
+      setFormData({ title: '', date: new Date().toISOString().split('T')[0], description: '' });
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Recent Activity</DialogTitle>
+          <DialogDescription>
+            Add a new activity that the kagawad has recently accomplished.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="activityTitle">Activity Title</Label>
+            <Input
+              id="activityTitle"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="e.g., Community Youth Summit"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="activityDate">Date</Label>
+            <Input
+              id="activityDate"
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="activityDescription">Description</Label>
+            <Textarea
+              id="activityDescription"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Brief description of the activity"
+              rows={3}
+            />
+          </div>
         </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Add Activity</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Select New Kagawad Modal
+const SelectKagawadModal = ({ isOpen, onClose, kagawads, onSelect }) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Select Kagawad of the Day</DialogTitle>
+          <DialogDescription>
+            Choose a kagawad to feature as the "Kagawad of the Day".
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-4 py-4 max-h-[60vh] overflow-y-auto">
+          {kagawads.map((k) => (
+            <Card 
+              key={k.id} 
+              className="cursor-pointer hover:border-primary transition-colors"
+              onClick={() => {
+                onSelect(k);
+                onClose();
+              }}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-muted">
+                    {k.photo ? (
+                      <img src={k.photo} alt={k.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                        <Users className="h-6 w-6 text-primary/50" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="font-medium">{k.name}</h4>
+                    <p className="text-xs text-muted-foreground">{k.position}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// KagawadManagement Component
+const KagawadManagement = ({ 
+  kagawad, 
+  onEdit, 
+  onAddActivity, 
+  onDeleteActivity,
+  onSelectNewKagawad 
+}) => (
+  <Card className="w-full">
+    <CardHeader className="flex flex-row items-center justify-between">
+      <div>
+        <CardTitle className="flex items-center space-x-2">
+          <Users className="h-5 w-5 text-primary" />
+          <span>Kagawad of the Day Management</span>
+        </CardTitle>
+        <CardDescription>Manage featured kagawad and their activities</CardDescription>
       </div>
-      <p className="text-sm text-muted-foreground">{kagawad.bio}</p>
-      <div className="space-y-2 text-sm">
-        <div className="flex items-center space-x-2">
-          <Phone className="h-4 w-4 text-muted-foreground" />
-          <span>{kagawad.contact}</span>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={onSelectNewKagawad}>
+          <CalendarDays className="h-4 w-4 mr-2" />
+          Change Featured
+        </Button>
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <Edit className="h-4 w-4 mr-2" />
+          Edit Kagawad
+        </Button>
+        <Button size="sm" onClick={onAddActivity}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Activity
+        </Button>
+      </div>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Kagawad Photo */}
+        <div className="space-y-4">
+          <div className="relative group">
+            <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+              {kagawad.photo ? (
+                <img 
+                  src={kagawad.photo} 
+                  alt={kagawad.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                  <Users className="h-12 w-12 text-primary/50" />
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <h4 className="font-semibold text-lg">{kagawad.name}</h4>
+            <p className="text-sm text-primary">{kagawad.position}</p>
+            <Badge variant="outline" className="mt-2">
+              <CalendarDays className="h-3 w-3 mr-1" />
+              Featured Today
+            </Badge>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <Mail className="h-4 w-4 text-muted-foreground" />
-          <span>{kagawad.email}</span>
+
+        {/* Contact Info */}
+        <div className="space-y-4">
+          <h5 className="font-medium">Contact Information</h5>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center space-x-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <span>{kagawad.contact}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span>{kagawad.email}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span>{kagawad.address}</span>
+            </div>
+          </div>
+          <div className="pt-2">
+            <p className="text-sm text-muted-foreground">Started: {kagawad.dateStarted}</p>
+            <p className="text-sm text-muted-foreground mt-1">{kagawad.bio}</p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <MapPin className="h-4 w-4 text-muted-foreground" />
-          <span>{kagawad.address}</span>
+
+        {/* Recent Activities */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h5 className="font-medium">Recent Activities</h5>
+            <Button variant="ghost" size="sm" onClick={onAddActivity}>
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+            {kagawad.recentActivities?.map((activity, index) => (
+              <div key={index} className="border-l-2 border-primary pl-3 py-1 group relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute -right-2 -top-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onDeleteActivity(index)}
+                >
+                  <Trash2 className="h-3 w-3 text-destructive" />
+                </Button>
+                <p className="text-sm font-medium">{activity.title}</p>
+                <p className="text-xs text-muted-foreground">{activity.date}</p>
+                <p className="text-xs mt-1">{activity.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </CardContent>
   </Card>
 );
 
-export default function CombinedHome() {
-  const { user } = useAuth?.() || {};
+const AdminDashboard = () => {
+  // Check authentication from localStorage directly
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+  
+  // Modal states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showSelectKagawadModal, setShowSelectKagawadModal] = useState(false);
 
-  // Services for public section
+  // Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    const role = localStorage.getItem('userRole');
+    const name = localStorage.getItem('userName');
+    
+    if (token && (role === 'admin' || role === 'staff')) {
+      setIsAuthenticated(true);
+      setUser({
+        name: name || 'Admin User',
+        role: role,
+        isAuthenticated: true
+      });
+    }
+  }, []);
+
+  // All kagawads list
+  const [allKagawads, setAllKagawads] = useState([
+    {
+      id: '1',
+      name: 'Maria Santos',
+      position: 'SK Chairman',
+      photo: null,
+      bio: 'Dedicated to serving the youth of our barangay with passion and commitment. Leading various community programs and youth development initiatives.',
+      contact: '+63 912 345 6789',
+      email: 'maria.santos@skbarangay.gov.ph',
+      address: 'Barangay San Jose, Quezon City',
+      dateStarted: 'January 2023',
+      recentActivities: [
+        {
+          title: 'Community Youth Summit',
+          date: '2024-01-15',
+          description: 'Organized and led the annual youth leadership summit with 200+ attendees'
+        },
+        {
+          title: 'Basketball Tournament',
+          date: '2024-01-10',
+          description: 'Spearheaded the inter-barangay basketball competition'
+        },
+        {
+          title: 'Clean-up Drive',
+          date: '2024-01-05',
+          description: 'Led the community clean-up drive in Zone 3'
+        }
+      ]
+    },
+    {
+      id: '2',
+      name: 'Juan Dela Cruz',
+      position: 'SK Kagawad',
+      photo: null,
+      bio: 'Passionate about youth development and community sports programs. Organizes regular basketball tournaments and sports events.',
+      contact: '+63 923 456 7890',
+      email: 'juan.delacruz@skbarangay.gov.ph',
+      address: 'Barangay San Jose, Quezon City',
+      dateStarted: 'March 2023',
+      recentActivities: [
+        {
+          title: 'Sports Festival',
+          date: '2024-01-12',
+          description: 'Organized the annual barangay sports festival'
+        }
+      ]
+    },
+    {
+      id: '3',
+      name: 'Ana Reyes',
+      position: 'SK Kagawad',
+      photo: null,
+      bio: 'Advocate for education and youth empowerment through various programs. Conducts free tutorial sessions for students.',
+      contact: '+63 934 567 8901',
+      email: 'ana.reyes@skbarangay.gov.ph',
+      address: 'Barangay San Jose, Quezon City',
+      dateStarted: 'June 2023',
+      recentActivities: [
+        {
+          title: 'Free Tutorial Program',
+          date: '2024-01-08',
+          description: 'Started free weekend tutorial sessions for elementary students'
+        }
+      ]
+    }
+  ]);
+
+  // Featured kagawad (Kagawad of the Day)
+  const [featuredKagawad, setFeaturedKagawad] = useState(allKagawads[0]);
+
+  // Services
   const services = [
-
     { title: "Document Requests", description: "Solicitation, suggestions", icon: <FileText className="h-6 w-6" />, link: "/admin/requests" },
     { title: "Facility Viewing", description: "Track facility status", icon: <Building className="h-6 w-6" />, link: "/admin/facilities" },
     { title: "Project Updates", description: "Stay informed about community development projects", icon: <Award className="h-6 w-6" />, link: "/admin/projects" },
     { title: "Announcements", description: "Latest news and updates from your barangay", icon: <Megaphone className="h-6 w-6" />, link: "/admin/announcements" },
   ];
 
-  const features = [
-    { title: "24/7 Online Services", description: "Submit requests anytime, anywhere", icon: <Clock className="h-5 w-5 text-primary" /> },
-    { title: "Real-time Updates", description: "Track your request status in real-time", icon: <CheckCircle className="h-5 w-5 text-primary" /> },
-    { title: "Transparent Process", description: "Clear and transparent service delivery", icon: <Star className="h-5 w-5 text-primary" /> },
-  ];
-
- const publicStats = [
-    { label: "Active Projects", value: "23", icon: <Building className="h-5 w-5" /> },
-    { label: "Completed Requests", value: "890", icon: <CheckCircle className="h-5 w-5" /> },
-    { label: "Accomplishmentys", value: "15", icon: <Award className="h-5 w-5" /> },
-    { label: "Reports", value: "Monthly", icon: <BarChart3 className="h-5 w-5" /> },
-  ];
-
-  // Dashboard data
   const dashboardStats = {
     pendingRequests: 12,
     approvedRequests: 156,
@@ -118,42 +573,95 @@ export default function CombinedHome() {
     activeAnnouncements: 5
   };
 
-  const featuredKagawad = {
-    id: '1',
-    name: 'Maria Santos',
-    position: 'SK Chairman',
-    avatar: '/placeholder.svg',
-    bio: 'Dedicated to serving the youth of our barangay with passion and commitment. Leading various community programs and youth development initiatives.',
-    contact: '+63 912 345 6789',
-    email: 'maria.santos@skbarangay.gov.ph',
-    address: 'Barangay San Jose, Quezon City',
-    dateStarted: 'January 2023'
+  // CRUD Operations
+  const handleEditKagawad = () => {
+    setShowEditModal(true);
   };
 
-  const recentAnnouncements = [
-    {
-      id: 1,
-      title: 'Community Basketball Tournament 2024',
-      date: '2024-01-15',
-      preview: 'Join us for the annual basketball tournament...'
-    },
-    {
-      id: 2,
-      title: 'Youth Leadership Seminar',
-      date: '2024-01-12',
-      preview: 'Empowering the next generation of leaders...'
-    },
-    {
-      id: 3,
-      title: 'Barangay Cleanup Drive',
-      date: '2024-01-10',
-      preview: 'Let\'s work together to keep our community clean...'
+  const handleSaveKagawad = (updatedKagawad) => {
+    setFeaturedKagawad(updatedKagawad);
+    
+    // Update in allKagawads list
+    setAllKagawads(allKagawads.map(k => 
+      k.id === updatedKagawad.id ? updatedKagawad : k
+    ));
+
+    // Save to localStorage for persistence across pages
+    localStorage.setItem('featuredKagawad', JSON.stringify(updatedKagawad));
+  };
+
+  const handleAddActivity = (newActivity) => {
+    const updatedKagawad = {
+      ...featuredKagawad,
+      recentActivities: [newActivity, ...(featuredKagawad.recentActivities || [])]
+    };
+    setFeaturedKagawad(updatedKagawad);
+    
+    // Update in allKagawads list
+    setAllKagawads(allKagawads.map(k => 
+      k.id === updatedKagawad.id ? updatedKagawad : k
+    ));
+
+    // Save to localStorage
+    localStorage.setItem('featuredKagawad', JSON.stringify(updatedKagawad));
+  };
+
+  const handleDeleteActivity = (index) => {
+    const updatedActivities = featuredKagawad.recentActivities.filter((_, i) => i !== index);
+    const updatedKagawad = {
+      ...featuredKagawad,
+      recentActivities: updatedActivities
+    };
+    setFeaturedKagawad(updatedKagawad);
+    
+    // Update in allKagawads list
+    setAllKagawads(allKagawads.map(k => 
+      k.id === updatedKagawad.id ? updatedKagawad : k
+    ));
+
+    // Save to localStorage
+    localStorage.setItem('featuredKagawad', JSON.stringify(updatedKagawad));
+  };
+
+  const handleSelectNewKagawad = (selectedKagawad) => {
+    setFeaturedKagawad(selectedKagawad);
+    
+    // Save to localStorage
+    localStorage.setItem('featuredKagawad', JSON.stringify(selectedKagawad));
+  };
+
+  // Load featured kagawad from localStorage on component mount
+  useEffect(() => {
+    const savedKagawad = localStorage.getItem('featuredKagawad');
+    if (savedKagawad) {
+      setFeaturedKagawad(JSON.parse(savedKagawad));
     }
-  ];
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section */}
+      {/* Modals */}
+      <EditKagawadModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        kagawad={featuredKagawad}
+        onSave={handleSaveKagawad}
+      />
+
+      <AddActivityModal
+        isOpen={showActivityModal}
+        onClose={() => setShowActivityModal(false)}
+        onSave={handleAddActivity}
+      />
+
+      <SelectKagawadModal
+        isOpen={showSelectKagawadModal}
+        onClose={() => setShowSelectKagawadModal(false)}
+        kagawads={allKagawads}
+        onSelect={handleSelectNewKagawad}
+      />
+
+      {/* Hero Section - Original with barangay hall image */}
       <section className="relative overflow-hidden bg-gradient-to-br from-government-blue/20 via-primary/10 to-government-red/20">
         <div className="absolute inset-0">
           <img src={heroImage} alt="SK Hero Banner" className="w-full h-full object-cover opacity-20" />
@@ -175,16 +683,10 @@ export default function CombinedHome() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                {user ? (
-                  <Button size="lg" asChild className="bg-gradient-to-r from-government-blue to-primary">
-                    <Link to="/dashboard">Go to Dashboard <ArrowRight className="ml-2 h-5 w-5" /></Link>
-                  </Button>
-                ) : (
-                  <Button size="lg" asChild className="bg-gradient-to-r from-government-blue to-primary">
-                    <Link to="/admin/Dashboard">Get Started <ArrowRight className="ml-2 h-5 w-5" /></Link>
-                  </Button>
-                )}
-                <Button variant="outline" size="lg" asChild><Link to="/admin/About">Learn More</Link></Button>
+                <Button size="lg" asChild className="bg-gradient-to-r from-government-blue to-primary">
+                  <Link to="/admin/dashboard">Go to Dashboard <ArrowRight className="ml-2 h-5 w-5" /></Link>
+                </Button>
+                <Button variant="outline" size="lg" asChild><Link to="/admin/about">Learn More</Link></Button>
               </div>
 
               {/* Contact Info */}
@@ -197,11 +699,10 @@ export default function CombinedHome() {
 
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
-                {/* Resized image - added max height and object-cover */}
                 <img 
                   src={barangayHall} 
                   alt="Barangay Hall" 
-                  className="w-full  object-cover"
+                  className="w-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
               </div>
@@ -211,223 +712,58 @@ export default function CombinedHome() {
       </section>
 
       {/* Dashboard Section (Only for logged-in users) */}
-      {user && (
+      {isAuthenticated && (
         <section className="py-8 bg-muted/20">
           <div className="container mx-auto px-4 space-y-8">
-            {/* Dashboard Hero */}
-            <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-government-blue via-primary to-government-red p-8 text-white">
-              <div className="relative z-10">
-                <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                  Welcome to SK Tumana
-                </h1>
-                <p className="text-lg mb-6 opacity-90">
-                  Your digital gateway to barangay services and community engagement
+
+            {/* Kagawad Management Panel */}
+            <KagawadManagement 
+              kagawad={featuredKagawad}
+              onEdit={handleEditKagawad}
+              onAddActivity={() => setShowActivityModal(true)}
+              onDeleteActivity={handleDeleteActivity}
+              onSelectNewKagawad={() => setShowSelectKagawadModal(true)}
+            />
+
+            {/* Services Section */}
+            <section className="py-8">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl lg:text-4xl font-bold mb-4">Our Services</h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Discover the digital services we offer to make your barangay experience seamless and efficient.
                 </p>
-                <div className="flex flex-wrap gap-3">
-                  <Button variant="secondary" size="lg" asChild>
-                    <Link to="/requests">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Submit Request
-                    </Link>
-                  </Button>
-                  <Button variant="outline" size="lg" className="border-white text-white hover:bg-white hover:text-primary">
-                    <Calendar className="mr-2 h-4 w-4" />
-                    View Schedule
-                  </Button>
-                </div>
               </div>
-              <div className="absolute inset-0 bg-black/20 z-0"></div>
-            </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-              <StatsCard
-                title="Pending Requests"
-                value={dashboardStats.pendingRequests}
-                icon={Clock}
-                description="+2 from yesterday"
-                trend="up"
-              />
-              <StatsCard
-                title="Approved Requests"
-                value={dashboardStats.approvedRequests}
-                icon={CheckCircle}
-                description="+12 this month"
-                trend="up"
-              />
-              <StatsCard
-                title="Completed Projects"
-                value={dashboardStats.completedRequests}
-                icon={Award}
-                description="85% completion rate"
-                trend="up"
-              />
-              <StatsCard
-                title="Active Projects"
-                value={dashboardStats.totalProjects}
-                icon={Building}
-                description="3 new this quarter"
-                trend="neutral"
-              />
-              <StatsCard
-                title="Announcements"
-                value={dashboardStats.activeAnnouncements}
-                icon={Megaphone}
-                description="2 posted today"
-                trend="up"
-              />
-            </div>
-
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Kagawad Spotlight */}
-              <KagawadSpotlight kagawad={featuredKagawad} />
-
-              {/* Recent Announcements */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Megaphone className="h-5 w-5 text-primary" />
-                      <span>Recent Announcements</span>
-                    </CardTitle>
-                    <CardDescription>Latest community updates</CardDescription>
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to="/announcements">View All</Link>
-                  </Button>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {recentAnnouncements.map((announcement) => (
-                    <div key={announcement.id} className="border-l-4 border-primary pl-4 py-2">
-                      <h4 className="font-medium text-sm mb-1">{announcement.title}</h4>
-                      <p className="text-xs text-muted-foreground mb-1">{announcement.date}</p>
-                      <p className="text-sm text-muted-foreground">{announcement.preview}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  <span>Quick Actions</span>
-                </CardTitle>
-                <CardDescription>Frequently used features and shortcuts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2" asChild>
-                    <Link to="/requests">
-                      <FileText className="h-6 w-6" />
-                      <span className="text-sm">New Request</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {services.map((service, index) => (
+                  <Card key={index} className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
+                    <Link to={service.link}>
+                      <CardHeader className="text-center pb-4">
+                        <div className="mx-auto p-3 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                          {service.icon}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="text-center">
+                        <CardTitle className="mb-2 group-hover:text-primary">{service.title}</CardTitle>
+                        <CardDescription>{service.description}</CardDescription>
+                      </CardContent>
                     </Link>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2" asChild>
-                    <Link to="/facilities">
-                      <Building className="h-6 w-6" />
-                      <span className="text-sm">Book Facility</span>
-                    </Link>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2" asChild>
-                    <Link to="/reports">
-                      <Award className="h-6 w-6" />
-                      <span className="text-sm">View Reports</span>
-                    </Link>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2" asChild>
-                    <Link to="/About">
-                      <Users className="h-6 w-6" />
-                      <span className="text-sm">Contact Us</span>
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  </Card>
+                ))}
+              </div>
+            </section>
           </div>
         </section>
       )}
 
-      {/* Public Stats (Only for non-logged-in users) */}
-      {!user && (
-        <section className="py-16 bg-muted/30">
-          <div className="container mx-auto px-4 grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
-            {publicStats.map((s, i) => (
-              <div key={i}>
-                <div className="flex justify-center mb-4">
-                  <div className="p-3 rounded-full bg-primary/10 text-primary">{s.icon}</div>
-                </div>
-                <h3 className="text-2xl lg:text-3xl font-bold">{s.value}</h3>
-                <p className="text-muted-foreground">{s.label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Services Section (For all users) */}
-      <section className="py-16">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-4">Our Services</h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-12">
-            Discover the digital services we offer to make your barangay experience seamless and efficient.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {services.map((service, index) => (
-              <Card key={index} className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
-                <Link to={service.link}>
-                  <CardHeader className="text-center pb-4">
-                    <div className="mx-auto p-3 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                      {service.icon}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="text-center">
-                    <CardTitle className="mb-2 group-hover:text-primary">{service.title}</CardTitle>
-                    <CardDescription>{service.description}</CardDescription>
-                  </CardContent>
-                </Link>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section (For all users) */}
-      <section className="py-16 bg-muted/30">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-4">Why Choose Digital Services?</h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-12">
-            Experience modern, efficient, and transparent barangay services.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {features.map((f, i) => (
-              <div key={i}>
-                <div className="flex justify-center mb-4">
-                  <div className="p-4 rounded-full bg-background shadow-lg">{f.icon}</div>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">{f.title}</h3>
-                <p className="text-muted-foreground">{f.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer / Social Media Section */}
+      {/* Footer / Social Media Section - Original */}
       <section className="py-12 bg-gray-900">
         <div className="container mx-auto px-4 text-center text-gray-300">
-          
           <h3 className="text-lg font-semibold text-white mb-6">
             SK Tumana 2023
           </h3>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center text-sm">
-            {/* Facebook */}
             <a
               href="https://www.facebook.com/p/SK-Tumana-2023-61553850061537/"
               target="_blank"
@@ -437,7 +773,6 @@ export default function CombinedHome() {
               <Facebook size={18} />
               <span>SK Tumana 2023</span>
             </a>
-            {/* Instagram */}
             <a
               href="https://www.instagram.com/sktumana/"
               target="_blank"
@@ -447,7 +782,6 @@ export default function CombinedHome() {
               <Instagram size={18} />
               <span>@sktumana</span>
             </a>
-            {/* Email */}
             <a
               href="mailto:sktumana.marikina@gmail.com"
               className="flex items-center gap-2 hover:text-white transition"
@@ -455,14 +789,14 @@ export default function CombinedHome() {
               <Mail size={18} />
               <span>sktumana.marikina@gmail.com</span>
             </a>
-
           </div>
           <p className="mt-8 text-xs text-gray-500">
             © {new Date().getFullYear()} SK Tumana. All rights reserved.
           </p>
-
         </div>
       </section>
     </div>
   );
-}
+};
+
+export default AdminDashboard;

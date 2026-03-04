@@ -80,7 +80,32 @@ const Projects = () => {
     }
   };
 
-  const getPlaceholderImage = (category, title) => {
+  const getProjectImage = (project) => {
+    // Check if project has an image
+    if (project.image) {
+      const imageUrl = `http://localhost:8000/storage/${project.image}`;
+      return (
+        <img
+          src={imageUrl}
+          alt={project.title}
+          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.style.display = 'none';
+            // Show placeholder on error
+            const parent = e.target.parentNode;
+            const placeholder = getPlaceholderContent(project.category, project.title);
+            parent.innerHTML = placeholder.props.children;
+          }}
+        />
+      );
+    }
+    
+    // Otherwise show placeholder
+    return getPlaceholderContent(project.category, project.title);
+  };
+
+  const getPlaceholderContent = (category, title) => {
     const colors = [
       'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
       'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
@@ -105,7 +130,7 @@ const Projects = () => {
       <div className={`w-full h-48 ${color} flex items-center justify-center`}>
         <div className="text-center p-4">
           <IconComponent className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-          <span className="text-gray-500 text-sm">Project Image</span>
+          <span className="text-gray-500 text-sm">{title}</span>
         </div>
       </div>
     );
@@ -114,6 +139,11 @@ const Projects = () => {
   const handleViewDetails = (project) => {
     setSelectedProject(project);
     setShowDetails(true);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not set';
+    return new Date(dateString).toLocaleDateString();
   };
 
   if (loading) {
@@ -148,17 +178,29 @@ const Projects = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* Search Section */}
-        <div className="max-w-2xl mx-auto">
-          <div className="relative">
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row gap-4 max-w-4xl mx-auto">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Search projects by name, description, or category..."
+              placeholder="Search projects..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 py-6 text-lg"
+              className="pl-10 py-6"
             />
           </div>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-48">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="planning">Planning</SelectItem>
+              <SelectItem value="ongoing">Ongoing</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Projects Counter */}
@@ -200,11 +242,9 @@ const Projects = () => {
         {/* Projects Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredProjects.map((project) => (
-            <Card key={project.id} className="hover:shadow-lg transition-all duration-300 group border-0 shadow-md">
-              <div className="relative overflow-hidden rounded-t-lg">
-                <div className="w-full">
-                  {getPlaceholderImage(project.category, project.title)}
-                </div>
+            <Card key={project.id} className="hover:shadow-lg transition-all duration-300 group border-0 shadow-md overflow-hidden">
+              <div className="relative overflow-hidden rounded-t-lg h-48 bg-gray-100">
+                {getProjectImage(project)}
                 <Badge className={`absolute top-3 right-3 border ${getStatusColor(project.status)}`}>
                   {getStatusText(project.status)}
                 </Badge>
@@ -241,11 +281,11 @@ const Projects = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>Start: {new Date(project.start_date).toLocaleDateString()}</span>
+                    <span>Start: {formatDate(project.start_date)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>End: {new Date(project.end_date).toLocaleDateString()}</span>
+                    <span>End: {formatDate(project.end_date)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="h-4 w-4" />
@@ -307,8 +347,23 @@ const Projects = () => {
               </div>
               
               <div className="p-6 space-y-6">
+                {/* Project Image in Modal */}
+                {selectedProject.image && (
+                  <div className="rounded-lg overflow-hidden">
+                    <img
+                      src={`http://localhost:8000/storage/${selectedProject.image}`}
+                      alt={selectedProject.title}
+                      className="w-full max-h-96 object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Header Info */}
-                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{selectedProject.category}</Badge>
                   </div>
@@ -318,19 +373,24 @@ const Projects = () => {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    <span className="font-medium">Timeline:</span>
-                    <span>{new Date(selectedProject.start_date).toLocaleDateString()} - {new Date(selectedProject.end_date).toLocaleDateString()}</span>
+                    <Calendar className="h-4 w-4 text-indigo-500" />
+                    <span className="font-medium">Start:</span>
+                    <span>{formatDate(selectedProject.start_date)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
+                    <Calendar className="h-4 w-4 text-indigo-500" />
+                    <span className="font-medium">End:</span>
+                    <span>{formatDate(selectedProject.end_date)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-indigo-500" />
                     <span className="font-medium">Location:</span>
                     <span>{selectedProject.location}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
+                    <Users className="h-4 w-4 text-indigo-500" />
                     <span className="font-medium">Beneficiaries:</span>
-                    <span>{selectedProject.beneficiaries} residents</span>
+                    <span>{selectedProject.beneficiaries}</span>
                   </div>
                 </div>
 
