@@ -15,7 +15,8 @@ class Accomplishment extends Model
         'location',
         'date_completed',
         'photo',
-        'is_published'
+        'is_published',
+        'project_id'
     ];
 
     protected $casts = [

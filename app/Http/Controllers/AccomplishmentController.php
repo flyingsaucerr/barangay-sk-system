@@ -4,8 +4,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Accomplishment;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class AccomplishmentController extends Controller
 {
@@ -17,16 +19,49 @@ class AccomplishmentController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'location' => 'nullable|string|max:255',
             'date_completed' => 'required|date',
             'photo' => 'nullable|image|max:5120', // 5MB max
+            'project_id' => 'nullable|exists:projects,id',
         ]);
 
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
+
+        // Handle photo upload
         if ($request->hasFile('photo')) {
             $validated['photo'] = $request->file('photo')->store('accomplishments', 'public');
+        }
+        // If this is from a project and no new photo was uploaded, try to copy the project image
+        elseif ($request->has('project_id')) {
+            $project = Project::find($request->project_id);
+            
+            if ($project && $project->image) {
+                // Check if the project image exists in storage
+                if (Storage::disk('public')->exists($project->image)) {
+                    // Get the file extension
+                    $extension = pathinfo($project->image, PATHINFO_EXTENSION);
+                    
+                    // Generate a new filename for the accomplishment
+                    $newFilename = 'accomplishments/' . uniqid() . '.' . $extension;
+                    
+                    // Copy the file to the accomplishments directory
+                    Storage::disk('public')->copy($project->image, $newFilename);
+                    
+                    $validated['photo'] = $newFilename;
+                }
+            }
+        }
+
+        // Add project_id to the record if it exists
+        if ($request->has('project_id')) {
+            $validated['project_id'] = $request->project_id;
         }
 
         $accomplishment = Accomplishment::create($validated);
@@ -41,13 +76,20 @@ class AccomplishmentController extends Controller
 
     public function update(Request $request, Accomplishment $accomplishment)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'location' => 'nullable|string|max:255',
             'date_completed' => 'required|date',
             'photo' => 'nullable|image|max:5120',
+            'project_id' => 'nullable|exists:projects,id',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
 
         if ($request->hasFile('photo')) {
             // Delete old photo
