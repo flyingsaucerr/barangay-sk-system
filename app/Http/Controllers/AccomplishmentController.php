@@ -127,8 +127,6 @@ class AccomplishmentController extends Controller
         $accomplishment->update(['is_published' => false]);
         return response()->json($accomplishment);
     }
-
-    // Public routes
     public function publicIndex()
     {
         $accomplishments = Accomplishment::where('is_published', true)

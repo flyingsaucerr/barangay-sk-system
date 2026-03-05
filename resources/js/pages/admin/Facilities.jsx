@@ -492,9 +492,6 @@ const handleUpdateFacility = async (e) => {
                         <option value="maintenance">Maintenance</option>
                         <option value="reserved">Reserved</option>
                       </select>
-                      <Button variant="outline" size="sm" className="text-xs">
-                        View Bookings
-                      </Button>
                     </div>
                   </>
                 )}

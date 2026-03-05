@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+
 // StatsCard Component (keep for dashboard stats if needed)
 const StatsCard = ({ title, value, icon: Icon, description }) => (
   <Card>
@@ -488,71 +489,156 @@ const AdminDashboard = () => {
 
   // All kagawads list
   const [allKagawads, setAllKagawads] = useState([
-    {
-      id: '1',
-      name: 'Maria Santos',
-      position: 'SK Chairman',
-      photo: null,
-      bio: 'Dedicated to serving the youth of our barangay with passion and commitment. Leading various community programs and youth development initiatives.',
-      contact: '+63 912 345 6789',
-      email: 'maria.santos@skbarangay.gov.ph',
-      address: 'Barangay San Jose, Quezon City',
-      dateStarted: 'January 2023',
-      recentActivities: [
-        {
-          title: 'Community Youth Summit',
-          date: '2024-01-15',
-          description: 'Organized and led the annual youth leadership summit with 200+ attendees'
-        },
-        {
-          title: 'Basketball Tournament',
-          date: '2024-01-10',
-          description: 'Spearheaded the inter-barangay basketball competition'
-        },
-        {
-          title: 'Clean-up Drive',
-          date: '2024-01-05',
-          description: 'Led the community clean-up drive in Zone 3'
-        }
-      ]
-    },
-    {
-      id: '2',
-      name: 'Juan Dela Cruz',
-      position: 'SK Kagawad',
-      photo: null,
-      bio: 'Passionate about youth development and community sports programs. Organizes regular basketball tournaments and sports events.',
-      contact: '+63 923 456 7890',
-      email: 'juan.delacruz@skbarangay.gov.ph',
-      address: 'Barangay San Jose, Quezon City',
-      dateStarted: 'March 2023',
-      recentActivities: [
-        {
-          title: 'Sports Festival',
-          date: '2024-01-12',
-          description: 'Organized the annual barangay sports festival'
-        }
-      ]
-    },
-    {
-      id: '3',
-      name: 'Ana Reyes',
-      position: 'SK Kagawad',
-      photo: null,
-      bio: 'Advocate for education and youth empowerment through various programs. Conducts free tutorial sessions for students.',
-      contact: '+63 934 567 8901',
-      email: 'ana.reyes@skbarangay.gov.ph',
-      address: 'Barangay San Jose, Quezon City',
-      dateStarted: 'June 2023',
-      recentActivities: [
-        {
-          title: 'Free Tutorial Program',
-          date: '2024-01-08',
-          description: 'Started free weekend tutorial sessions for elementary students'
-        }
-      ]
-    }
-  ]);
+  {
+    id: '1',
+    name: 'CJ Ancheta',
+    position: 'SK Chairman',
+    photo: null,
+    bio: 'Dedicated to serving the youth of our barangay with passion and commitment. Leads various community programs and youth development initiatives.',
+    contact: '+63 912 345 6789',
+    email: 'cj.ancheta@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'January 2023',
+    recentActivities: [
+      {
+        title: 'Community Youth Summit',
+        date: '2024-01-15',
+        description: 'Organized and led the annual youth leadership summit with 200+ attendees.'
+      },
+      {
+        title: 'Basketball Tournament',
+        date: '2024-01-10',
+        description: 'Spearheaded the inter-barangay basketball competition.'
+      }
+    ]
+  },
+  {
+    id: '2',
+    name: 'Dollar Cristal',
+    position: 'SK Kagawad',
+    photo: null,
+    bio: 'Passionate about health programs and youth engagement. Regularly conducts seminars and workshops for teens.',
+    contact: '+63 915 678 2345',
+    email: 'dollar.cristal@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'February 2023',
+    recentActivities: [
+      {
+        title: 'Youth Health Workshop',
+        date: '2024-02-20',
+        description: 'Conducted a workshop on mental and physical health awareness.'
+      }
+    ]
+  },
+  {
+    id: '3',
+    name: 'Jemimah Keziah Isipin',
+    position: 'SK Kagawad',
+    photo: null,
+    bio: 'Focuses on education and gender development programs for the youth. Actively participates in community learning events.',
+    contact: '+63 917 345 6780',
+    email: 'jemimah.isipin@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'March 2023',
+    recentActivities: [
+      {
+        title: 'Women Empowerment Seminar',
+        date: '2024-01-18',
+        description: 'Led a seminar promoting leadership and empowerment among young women.'
+      }
+    ]
+  },
+  {
+    id: '4',
+    name: 'Paul Michael Bandril',
+    position: 'SK Kagawad',
+    photo: null,
+    bio: 'Sports enthusiast and youth advocate. Organizes sports tournaments and promotes healthy lifestyles.',
+    contact: '+63 918 234 5678',
+    email: 'paul.bandril@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'April 2023',
+    recentActivities: [
+      {
+        title: 'Barangay Sports Festival',
+        date: '2024-03-10',
+        description: 'Organized the annual youth sports festival with basketball and volleyball tournaments.'
+      }
+    ]
+  },
+  {
+    id: '5',
+    name: 'Rie Alden Borlongan',
+    position: 'SK Kagawad',
+    photo: null,
+    bio: 'Champion of cultural and educational activities for the youth. Coordinates community arts and literacy programs.',
+    contact: '+63 919 876 5432',
+    email: 'rie.borlongan@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'May 2023',
+    recentActivities: [
+      {
+        title: 'Youth Arts Program',
+        date: '2024-02-25',
+        description: 'Hosted an art workshop for high school students.'
+      }
+    ]
+  },
+  {
+    id: '6',
+    name: 'Melody Acuin',
+    position: 'SK Kagawad',
+    photo: null,
+    bio: 'Passionate about livelihood projects and environmental protection. Helps youth with career guidance and eco-initiatives.',
+    contact: '+63 920 567 8912',
+    email: 'melody.acuin@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'June 2023',
+    recentActivities: [
+      {
+        title: 'Youth Livelihood Fair',
+        date: '2024-01-30',
+        description: 'Organized a fair introducing livelihood opportunities for young residents.'
+      }
+    ]
+  },
+  {
+    id: '7',
+    name: 'Moanna Maye Calanda',
+    position: 'SK Kagawad',
+    photo: null,
+    bio: 'Environmental advocate and youth community organizer. Leads disaster preparedness and eco-awareness campaigns.',
+    contact: '+63 921 234 5679',
+    email: 'moanna.calanda@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'July 2023',
+    recentActivities: [
+      {
+        title: 'Barangay Tree Planting',
+        date: '2024-02-15',
+        description: 'Led a tree planting activity in the barangay park with volunteers from the youth council.'
+      }
+    ]
+  },
+  {
+    id: '8',
+    name: 'Danilo Cervantes',
+    position: 'SK Kagawad',
+    photo: null,
+    bio: 'Focused on anti-drug programs and social protection initiatives. Engages with youth in community awareness campaigns.',
+    contact: '+63 922 345 6781',
+    email: 'danilo.cervantes@skbarangay.gov.ph',
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'August 2023',
+    recentActivities: [
+      {
+        title: 'Anti-Drug Awareness Campaign',
+        date: '2024-03-05',
+        description: 'Conducted seminars and street campaigns educating youth on anti-drug awareness.'
+      }
+    ]
+  }
+]);
 
   // Featured kagawad (Kagawad of the Day)
   const [featuredKagawad, setFeaturedKagawad] = useState(allKagawads[0]);

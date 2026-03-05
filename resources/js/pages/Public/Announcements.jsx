@@ -192,9 +192,6 @@ const Announcements = () => {
                 <CardDescription className="flex items-center space-x-2 text-sm">
                   <Calendar className="h-4 w-4" />
                   <span>{formatDate(announcement.created_at)}</span>
-                  <span>•</span>
-                  <User className="h-4 w-4" />
-                  <span className="truncate">{announcement.author || (announcement.user && announcement.user.name) || 'Barangay'}</span>
                 </CardDescription>
               </CardHeader>
               
@@ -283,10 +280,6 @@ const Announcements = () => {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-primary" />
                     <span>{formatDate(selectedAnnouncement.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-primary" />
-                    <span>{selectedAnnouncement.author || (selectedAnnouncement.user && selectedAnnouncement.user.name) || 'Barangay Official'}</span>
                   </div>
                   <Badge className={getPriorityColor(selectedAnnouncement.priority)}>
                     {(selectedAnnouncement.priority || 'medium').toUpperCase()} PRIORITY

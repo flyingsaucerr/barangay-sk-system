@@ -1197,14 +1197,31 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
           />
         </div>
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Birthday *</label>
-          <Input
-            type="date"
-            value={formData.birthday}
-            onChange={(e) => handleInputChange("birthday", e.target.value)}
-            required
-          />
-        </div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Birthday *
+        </label>
+        <Input
+          type="date"
+          value={formData.birthday}
+          onChange={(e) => {
+            const birthDate = new Date(e.target.value);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+
+            if (age >= 15 && age <= 30) {
+              handleInputChange("birthday", e.target.value);
+            } else {
+              alert("Age must be between 15 and 30 years old.");
+              handleInputChange("birthday", "");
+            }
+          }}
+          required
+        />
+      </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1221,8 +1238,24 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
         </div>
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700 mb-2">Civil Status *</label>
-          <Select value={formData.civil_status} onValueChange={(value) => handleInputChange("civil_status", value)}>
-            <SelectTrigger><SelectValue placeholder="Select civil status" /></SelectTrigger>
+          <Select
+            value={formData.civil_status}
+            onValueChange={(value) => {
+              handleInputChange("civil_status", value);
+
+              // Inline filtering and clearing relationship if invalid
+              if (
+                (value === "Single" && formData.emergency_contact_relationship === "Spouse") ||
+                (value === "Married" && formData.emergency_contact_relationship === "Live-in Partner") ||
+                (value === "Widowed" && formData.emergency_contact_relationship === "Spouse")
+              ) {
+                handleInputChange("emergency_contact_relationship", "");
+              }
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select civil status" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="Single">Single</SelectItem>
               <SelectItem value="Married">Married</SelectItem>
@@ -1246,12 +1279,21 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Contact Number *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Contact Number *
+          </label>
           <Input
+            type="tel"
             value={formData.contact_number}
-            onChange={(e) => handleInputChange("contact_number", e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value.replace(/\D/g, ""); 
+              if (value.length <= 11) {
+                handleInputChange("contact_number", value);
+              }
+            }}
             required
             placeholder="Enter contact number"
+            maxLength={11} 
           />
         </div>
         <div className="space-y-2">
@@ -1319,16 +1361,54 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">Relationship *</label>
-            <Select value={formData.emergency_contact_relationship} onValueChange={(value) => handleInputChange("emergency_contact_relationship", value)}>
-              <SelectTrigger><SelectValue placeholder="Select relationship" /></SelectTrigger>
+            <Select
+              value={formData.emergency_contact_relationship}
+              onValueChange={(value) => handleInputChange("emergency_contact_relationship", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select relationship" />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Father">Father</SelectItem>
-                <SelectItem value="Mother">Mother</SelectItem>
-                <SelectItem value="Sibling">Sibling</SelectItem>
-                <SelectItem value="Spouse">Spouse</SelectItem>
-                <SelectItem value="Guardian">Guardian</SelectItem>
-                <SelectItem value="Relative">Relative</SelectItem>
-                <SelectItem value="Friend">Friend</SelectItem>
+                {formData.civil_status === "Single"
+                  ? <>
+                      <SelectItem value="Father">Father</SelectItem>
+                      <SelectItem value="Mother">Mother</SelectItem>
+                      <SelectItem value="Sibling">Sibling</SelectItem>
+                      <SelectItem value="Guardian">Guardian</SelectItem>
+                      <SelectItem value="Relative">Relative</SelectItem>
+                      <SelectItem value="Friend">Friend</SelectItem>
+                      <SelectItem value="Live-in Partner">Live-in Partner</SelectItem>
+                    </>
+                  : formData.civil_status === "Married"
+                  ? <>
+                      <SelectItem value="Father">Father</SelectItem>
+                      <SelectItem value="Mother">Mother</SelectItem>
+                      <SelectItem value="Sibling">Sibling</SelectItem>
+                      <SelectItem value="Spouse">Spouse</SelectItem>
+                      <SelectItem value="Guardian">Guardian</SelectItem>
+                      <SelectItem value="Relative">Relative</SelectItem>
+                      <SelectItem value="Friend">Friend</SelectItem>
+                    </>
+                  : formData.civil_status === "Widowed"
+                  ? <>
+                      <SelectItem value="Father">Father</SelectItem>
+                      <SelectItem value="Mother">Mother</SelectItem>
+                      <SelectItem value="Sibling">Sibling</SelectItem>
+                      <SelectItem value="Guardian">Guardian</SelectItem>
+                      <SelectItem value="Relative">Relative</SelectItem>
+                      <SelectItem value="Friend">Friend</SelectItem>
+                    </>
+                  : <>
+                      <SelectItem value="Father">Father</SelectItem>
+                      <SelectItem value="Mother">Mother</SelectItem>
+                      <SelectItem value="Sibling">Sibling</SelectItem>
+                      <SelectItem value="Spouse">Spouse</SelectItem>
+                      <SelectItem value="Guardian">Guardian</SelectItem>
+                      <SelectItem value="Relative">Relative</SelectItem>
+                      <SelectItem value="Friend">Friend</SelectItem>
+                      <SelectItem value="Live-in Partner">Live-in Partner</SelectItem>
+                    </>
+                }
               </SelectContent>
             </Select>
           </div>
@@ -1345,12 +1425,21 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact Number *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Emergency Contact Number *
+            </label>
             <Input
+              type="tel" 
               value={formData.emergency_contact_number}
-              onChange={(e) => handleInputChange("emergency_contact_number", e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "");
+                if (value.length <= 11) {
+                  handleInputChange("emergency_contact_number", value);
+                }
+              }}
               required
               placeholder="Enter emergency contact number"
+              maxLength={11} 
             />
           </div>
         </div>

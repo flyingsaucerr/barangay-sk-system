@@ -739,15 +739,6 @@ const handleAddDisclosure = async (e) => {
                   >
                     Edit Disclosure
                   </Button>
-                  <Button
-                    onClick={() => handlePublishToggle(selectedDisclosure.id, selectedDisclosure.is_published !== false)}
-                    className={selectedDisclosure.is_published !== false ? 
-                      "flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors" :
-                      "flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                    }
-                  >
-                    {selectedDisclosure.is_published !== false ? 'Unpublish' : 'Publish'}
-                  </Button>
                 </div>
               </div>
             </div>
