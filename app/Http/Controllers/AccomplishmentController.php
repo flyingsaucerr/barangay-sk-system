@@ -8,65 +8,73 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class AccomplishmentController extends Controller
 {
     public function index()
     {
-        $accomplishments = Accomplishment::orderBy('date_completed', 'desc')->get();
-        return response()->json($accomplishments);
+        try {
+            $accomplishments = Accomplishment::orderBy('date_completed', 'desc')->get();
+            return response()->json($accomplishments);
+        } catch (\Exception $e) {
+            Log::error('Error fetching accomplishments: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch accomplishments'], 500);
+        }
     }
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'location' => 'nullable|string|max:255',
-            'date_completed' => 'required|date',
-            'photo' => 'nullable|image|max:5120', // 5MB max
-            'project_id' => 'nullable|exists:projects,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $validated = $validator->validated();
-
-        // Handle photo upload
-        if ($request->hasFile('photo')) {
-            $validated['photo'] = $request->file('photo')->store('accomplishments', 'public');
-        }
-        // If this is from a project and no new photo was uploaded, try to copy the project image
-        elseif ($request->has('project_id')) {
-            $project = Project::find($request->project_id);
+        try {
+            Log::info('Store method called', $request->all());
             
-            if ($project && $project->image) {
-                // Check if the project image exists in storage
-                if (Storage::disk('public')->exists($project->image)) {
-                    // Get the file extension
-                    $extension = pathinfo($project->image, PATHINFO_EXTENSION);
-                    
-                    // Generate a new filename for the accomplishment
-                    $newFilename = 'accomplishments/' . uniqid() . '.' . $extension;
-                    
-                    // Copy the file to the accomplishments directory
-                    Storage::disk('public')->copy($project->image, $newFilename);
-                    
-                    $validated['photo'] = $newFilename;
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'location' => 'nullable|string|max:255',
+                'date_completed' => 'required|date',
+                'photo' => 'nullable|image|max:5120',
+                'project_id' => 'nullable|exists:projects,id',
+            ]);
+
+            if ($validator->fails()) {
+                Log::error('Validation failed', $validator->errors()->toArray());
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $data = $validator->validated();
+
+            // Handle photo upload
+            if ($request->hasFile('photo')) {
+                $path = $request->file('photo')->store('accomplishments', 'public');
+                $data['photo'] = $path;
+                Log::info('Photo uploaded', ['path' => $path]);
+            }
+            // If this is from a project and no new photo was uploaded, try to copy the project image
+            elseif ($request->has('project_id') && $request->project_id) {
+                $project = Project::find($request->project_id);
+                
+                if ($project && $project->image) {
+                    if (Storage::disk('public')->exists($project->image)) {
+                        $extension = pathinfo($project->image, PATHINFO_EXTENSION);
+                        $newFilename = 'accomplishments/' . uniqid() . '.' . $extension;
+                        Storage::disk('public')->copy($project->image, $newFilename);
+                        $data['photo'] = $newFilename;
+                        Log::info('Project image copied', ['new_path' => $newFilename]);
+                    }
                 }
             }
+
+            $accomplishment = Accomplishment::create($data);
+            Log::info('Accomplishment created', ['id' => $accomplishment->id]);
+
+            return response()->json($accomplishment, 201);
+            
+        } catch (\Exception $e) {
+            Log::error('Error in store method: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json(['error' => 'Failed to create accomplishment: ' . $e->getMessage()], 500);
         }
-
-        // Add project_id to the record if it exists
-        if ($request->has('project_id')) {
-            $validated['project_id'] = $request->project_id;
-        }
-
-        $accomplishment = Accomplishment::create($validated);
-
-        return response()->json($accomplishment, 201);
     }
 
     public function show(Accomplishment $accomplishment)
@@ -74,46 +82,86 @@ class AccomplishmentController extends Controller
         return response()->json($accomplishment);
     }
 
-    public function update(Request $request, Accomplishment $accomplishment)
+    public function update(Request $request, $id)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'location' => 'nullable|string|max:255',
-            'date_completed' => 'required|date',
-            'photo' => 'nullable|image|max:5120',
-            'project_id' => 'nullable|exists:projects,id',
-        ]);
+        try {
+            Log::info('Update method called', ['id' => $id, 'all_data' => $request->all()]);
+            
+            $accomplishment = Accomplishment::findOrFail($id);
+            
+            // Handle both PUT and POST with _method=PUT
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'location' => 'nullable|string|max:255',
+                'date_completed' => 'required|date',
+                'photo' => 'nullable|image|max:5120',
+                'project_id' => 'nullable|exists:projects,id',
+                'is_published' => 'sometimes|boolean',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $validated = $validator->validated();
-
-        if ($request->hasFile('photo')) {
-            // Delete old photo
-            if ($accomplishment->photo) {
-                Storage::disk('public')->delete($accomplishment->photo);
+            if ($validator->fails()) {
+                Log::error('Validation failed', $validator->errors()->toArray());
+                return response()->json(['errors' => $validator->errors()], 422);
             }
-            $validated['photo'] = $request->file('photo')->store('accomplishments', 'public');
+
+            $data = $validator->validated();
+
+            if ($request->hasFile('photo')) {
+                // Delete old photo
+                if ($accomplishment->photo) {
+                    Storage::disk('public')->delete($accomplishment->photo);
+                }
+                $path = $request->file('photo')->store('accomplishments', 'public');
+                $data['photo'] = $path;
+                Log::info('New photo uploaded', ['path' => $path]);
+            }
+
+            // Handle is_published as boolean
+            if ($request->has('is_published')) {
+                $data['is_published'] = filter_var($request->input('is_published'), FILTER_VALIDATE_BOOLEAN);
+            }
+
+            $accomplishment->update($data);
+            Log::info('Accomplishment updated', ['id' => $accomplishment->id]);
+
+            return response()->json($accomplishment);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Accomplishment not found', ['id' => $id]);
+            return response()->json(['error' => 'Accomplishment not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Error in update method: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json(['error' => 'Failed to update accomplishment: ' . $e->getMessage()], 500);
         }
-
-        $accomplishment->update($validated);
-
-        return response()->json($accomplishment);
     }
 
-    public function destroy(Accomplishment $accomplishment)
+    public function destroy($id)
     {
-        // Delete photo if exists
-        if ($accomplishment->photo) {
-            Storage::disk('public')->delete($accomplishment->photo);
+        try {
+            Log::info('Destroy method called', ['id' => $id]);
+            
+            $accomplishment = Accomplishment::findOrFail($id);
+
+            // Delete photo if exists
+            if ($accomplishment->photo) {
+                Storage::disk('public')->delete($accomplishment->photo);
+                Log::info('Photo deleted', ['path' => $accomplishment->photo]);
+            }
+
+            $accomplishment->delete();
+            Log::info('Accomplishment deleted', ['id' => $id]);
+
+            return response()->json(['message' => 'Accomplishment deleted successfully'], 200);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Accomplishment not found for deletion', ['id' => $id]);
+            return response()->json(['error' => 'Accomplishment not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Error in destroy method: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to delete accomplishment: ' . $e->getMessage()], 500);
         }
-
-        $accomplishment->delete();
-
-        return response()->json(null, 204);
     }
 
     public function publish(Accomplishment $accomplishment)
@@ -127,19 +175,32 @@ class AccomplishmentController extends Controller
         $accomplishment->update(['is_published' => false]);
         return response()->json($accomplishment);
     }
+    
     public function publicIndex()
     {
-        $accomplishments = Accomplishment::where('is_published', true)
-            ->orderBy('date_completed', 'desc')
-            ->get();
-        return response()->json($accomplishments);
+        try {
+            $accomplishments = Accomplishment::where('is_published', true)
+                ->orderBy('date_completed', 'desc')
+                ->get();
+            return response()->json($accomplishments);
+        } catch (\Exception $e) {
+            Log::error('Error fetching public accomplishments: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch accomplishments'], 500);
+        }
     }
 
-    public function publicShow(Accomplishment $accomplishment)
+    public function publicShow($id)
     {
-        if (!$accomplishment->is_published) {
-            abort(404);
+        try {
+            $accomplishment = Accomplishment::where('id', $id)
+                ->where('is_published', true)
+                ->firstOrFail();
+            return response()->json($accomplishment);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['error' => 'Accomplishment not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Error fetching public accomplishment: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch accomplishment'], 500);
         }
-        return response()->json($accomplishment);
     }
 }

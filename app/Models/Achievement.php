@@ -1,27 +1,24 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Accomplishment extends Model
+class Achievement extends Model
 {
     use HasFactory;
 
+    protected $table = 'achievements'; 
+    
     protected $fillable = [
+        'year',
         'title',
         'description',
-        'location',
-        'date_completed',
-        'photo',
-        'project_id',
-        'is_published'
-        
+        'sort_order',
+        'is_active'
     ];
 
     protected $casts = [
-        'date_completed' => 'date',
-        'is_published' => 'boolean'
+        'is_active' => 'boolean',
     ];
 }

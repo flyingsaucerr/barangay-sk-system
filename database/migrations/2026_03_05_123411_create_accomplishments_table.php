@@ -1,5 +1,4 @@
 <?php
-// database/migrations/xxxx_xx_xx_xxxxxx_create_accomplishments_table.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -16,6 +15,7 @@ return new class extends Migration
             $table->string('location')->nullable();
             $table->date('date_completed');
             $table->string('photo')->nullable();
+            $table->foreignId('project_id')->nullable()->constrained()->onDelete('set null');
             $table->boolean('is_published')->default(true);
             $table->timestamps();
         });

@@ -11,19 +11,19 @@ import {
   Phone,
   Mail,
   MapPin,
-  Clock,
   CheckCircle,
-  Star,
-  Facebook,
-  Instagram,
   Users,
-  CalendarDays
+  CalendarDays,
+  Facebook,
+  Instagram
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 
 import heroImage from "@/assets/sk-hero-banner.jpg";
 import barangayHall from "@/assets/barangayHall.jpg";
+
+const API_URL = 'http://localhost:8000/api';
 
 // KagawadOfTheDay Component for Public View
 const KagawadOfTheDay = ({ kagawad }) => (
@@ -42,11 +42,15 @@ const KagawadOfTheDay = ({ kagawad }) => (
         {/* Photo Section */}
         <div className="md:col-span-1">
           <div className="aspect-square rounded-lg overflow-hidden bg-muted">
-            {kagawad.photo ? (
+            {kagawad.image ? (
               <img 
-                src={kagawad.photo} 
+                src={`${API_URL.replace('/api', '')}/storage/${kagawad.image}`} 
                 alt={kagawad.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(kagawad.name)}&size=200&background=random`;
+                }}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-primary/10">
@@ -71,15 +75,15 @@ const KagawadOfTheDay = ({ kagawad }) => (
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span>{kagawad.contact}</span>
+              <span>{kagawad.contact || 'Not available'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
-              <span>{kagawad.email}</span>
+              <span>{kagawad.email || 'Not available'}</span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{kagawad.address}</span>
+              <span>{kagawad.address || 'Barangay Tumana, Marikina City'}</span>
             </div>
           </div>
         </div>
@@ -91,13 +95,19 @@ const KagawadOfTheDay = ({ kagawad }) => (
             Recent Activities
           </h4>
           <div className="space-y-3">
-            {kagawad.recentActivities?.map((activity, index) => (
-              <div key={index} className="border-l-2 border-primary pl-3 py-1">
-                <p className="text-sm font-medium">{activity.title}</p>
-                <p className="text-xs text-muted-foreground">{activity.date}</p>
-                <p className="text-xs mt-1 line-clamp-2">{activity.description}</p>
-              </div>
-            ))}
+            {kagawad.recentActivities?.length > 0 ? (
+              kagawad.recentActivities.map((activity, index) => (
+                <div key={index} className="border-l-2 border-primary pl-3 py-1">
+                  <p className="text-sm font-medium">{activity.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(activity.date).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs mt-1 line-clamp-2">{activity.description}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No recent activities</p>
+            )}
           </div>
         </div>
       </div>
@@ -106,112 +116,108 @@ const KagawadOfTheDay = ({ kagawad }) => (
 );
 
 export default function PublicHome() {
-  const [featuredKagawad, setFeaturedKagawad] = useState({
-    id: '1',
-    name: 'Maria Santos',
-    position: 'SK Chairman',
-    photo: null,
-    bio: 'Dedicated to serving the youth of our barangay with passion and commitment. Leading various community programs and youth development initiatives.',
-    contact: '+63 912 345 6789',
-    email: 'maria.santos@skbarangay.gov.ph',
-    address: 'Barangay San Jose, Quezon City',
-    dateStarted: 'January 2023',
-    recentActivities: [
-      {
-        title: 'Community Youth Summit',
-        date: '2024-01-15',
-        description: 'Organized and led the annual youth leadership summit with 200+ attendees'
-      },
-      {
-        title: 'Basketball Tournament',
-        date: '2024-01-10',
-        description: 'Spearheaded the inter-barangay basketball competition'
-      },
-      {
-        title: 'Clean-up Drive',
-        date: '2024-01-05',
-        description: 'Led the community clean-up drive in Zone 3'
-      }
-    ]
+  const [featuredKagawad, setFeaturedKagawad] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
+  const [accomplishments, setAccomplishments] = useState([]);
+  const [stats, setStats] = useState({
+    activeProjects: 0,
+    completedRequests: 0,
+    accomplishments: 0,
+    reports: "Monthly"
   });
+  const [loading, setLoading] = useState(true);
+
+  // Fetch all data
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch featured kagawad from localStorage
+        const savedKagawad = localStorage.getItem('featuredKagawad');
+        if (savedKagawad) {
+          setFeaturedKagawad(JSON.parse(savedKagawad));
+        } else {
+          // Fallback featured kagawad
+          setFeaturedKagawad({
+            id: '1',
+            name: 'Maria Santos',
+            position: 'SK Chairman',
+            image: null,
+            bio: 'Dedicated to serving the youth of our barangay with passion and commitment.',
+            contact: '+63 912 345 6789',
+            email: 'maria.santos@skbarangay.gov.ph',
+            address: 'Barangay Tumana, Marikina City',
+            recentActivities: []
+          });
+        }
+
+        // Fetch announcements
+        const announcementsResponse = await fetch(`${API_URL}/announcements`);
+        if (announcementsResponse.ok) {
+          const announcementsData = await announcementsResponse.json();
+          // Get latest 3 announcements
+          setAnnouncements(announcementsData.slice(0, 3));
+        }
+
+        // Fetch accomplishments
+        const accomplishmentsResponse = await fetch(`${API_URL}/accomplishments`);
+        if (accomplishmentsResponse.ok) {
+          const accomplishmentsData = await accomplishmentsResponse.json();
+          // Get latest 3 accomplishments
+          setAccomplishments(accomplishmentsData.slice(0, 3));
+        }
+
+        // Fetch stats from various endpoints
+        const projectsResponse = await fetch(`${API_URL}/projects`);
+        const requestsResponse = await fetch(`${API_URL}/admin/requests`);
+        const accomplishmentsCountResponse = await fetch(`${API_URL}/accomplishments`);
+
+        const projectsData = projectsResponse.ok ? await projectsResponse.json() : [];
+        const requestsData = requestsResponse.ok ? await requestsResponse.json() : [];
+        const accomplishmentsData = accomplishmentsCountResponse.ok ? await accomplishmentsCountResponse.json() : [];
+
+        setStats({
+          activeProjects: projectsData.length || 23,
+          completedRequests: requestsData.length || 890,
+          accomplishments: accomplishmentsData.length || 15,
+          reports: "Monthly"
+        });
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, []);
 
   const services = [
-    { title: "Document Requests", description: "Solicitation, suggestions", icon: <FileText className="h-6 w-6" />, link: "/services" },
-    { title: "Facility Viewing", description: "Track facility status", icon: <Building className="h-6 w-6" />, link: "/facilities" },
-    { title: "Project Updates", description: "Stay informed about community development projects", icon: <Award className="h-6 w-6" />, link: "/projects" },
-    { title: "Announcements", description: "Latest news and updates from your barangay", icon: <Megaphone className="h-6 w-6" />, link: "/announcements" },
+    { title: "Document Requests", description: "Submit and track document requests", icon: <FileText className="h-6 w-6" />, link: "/services" },
+    { title: "Facility Viewing", description: "Check facility availability", icon: <Building className="h-6 w-6" />, link: "/facilities" },
+    { title: "Project Updates", description: "Stay informed about community projects", icon: <Award className="h-6 w-6" />, link: "/projects" },
+    { title: "Announcements", description: "Latest news and updates", icon: <Megaphone className="h-6 w-6" />, link: "/announcements" },
   ];
 
-  const stats = [
-    { label: "Active Projects", value: "23", icon: <Building className="h-5 w-5" /> },
-    { label: "Completed Requests", value: "890", icon: <CheckCircle className="h-5 w-5" /> },
-    { label: "Accomplishments", value: "15", icon: <Award className="h-5 w-5" /> },
-    { label: "Reports", value: "Monthly", icon: <BarChart3 className="h-5 w-5" /> },
+  const displayStats = [
+    { label: "Active Projects", value: stats.activeProjects.toString(), icon: <Building className="h-5 w-5" /> },
+    { label: "Completed Requests", value: stats.completedRequests.toString(), icon: <CheckCircle className="h-5 w-5" /> },
+    { label: "Accomplishments", value: stats.accomplishments.toString(), icon: <Award className="h-5 w-5" /> },
+    { label: "Reports", value: stats.reports, icon: <BarChart3 className="h-5 w-5" /> },
   ];
 
-  const recentAccomplishments = [
-    {
-      id: 1,
-      title: "Road Rehabilitation Project",
-      description: "Completed the rehabilitation of 2km main road with proper drainage system",
-      location: "Zone 1 - Main Road",
-      date: "2024-01-10",
-      category: "Infrastructure"
-    },
-    {
-      id: 2,
-      title: "Street Light Installation",
-      description: "Installed 50 new LED street lights in dark areas of the barangay",
-      location: "Various Locations",
-      date: "2023-12-15",
-      category: "Public Safety"
-    },
-    {
-      id: 3,
-      title: "Drainage System Improvement",
-      description: "Improved drainage system in flood-prone areas to prevent flooding during rainy season",
-      location: "Zone 3 & 4",
-      date: "2023-11-20",
-      category: "Infrastructure"
-    }
-  ];
-
-  const announcements = [
-    {
-      id: 1,
-      title: "Community Clean-up Drive Success",
-      content: "Our recent community clean-up drive collected over 500kg of waste. Thank you to all volunteers!",
-      date: "2024-01-15",
-      type: "success"
-    },
-    {
-      id: 2,
-      title: "New Basketball Court Installation",
-      content: "The new basketball court in Zone 5 will be completed by next month. Stay tuned for the opening ceremony!",
-      date: "2024-01-10",
-      type: "info"
-    },
-    {
-      id: 3,
-      title: "Medical Mission Schedule",
-      content: "Free medical check-ups will be available every Saturday this month at the barangay hall.",
-      date: "2024-01-05",
-      type: "warning"
-    }
-  ];
-
-  // Get badge color based on announcement type
-  const getAnnouncementBadge = (type) => {
+  const getAnnouncementBadge = (priority) => {
     const styles = {
-      success: "bg-green-100 text-green-800",
-      info: "bg-blue-100 text-blue-800",
-      warning: "bg-yellow-100 text-yellow-800",
-      default: "bg-gray-100 text-gray-800"
+      high: "bg-red-100 text-red-800",
+      medium: "bg-yellow-100 text-yellow-800",
+      low: "bg-green-100 text-green-800",
+      default: "bg-blue-100 text-blue-800"
     };
-    return styles[type] || styles.default;
+    return styles[priority] || styles.default;
   };
 
-  // Format date to readable format
   const formatDate = (dateString) => {
     if (!dateString) return "—";
     const date = new Date(dateString);
@@ -222,12 +228,16 @@ export default function PublicHome() {
     });
   };
 
-useEffect(() => {
-  const savedKagawad = localStorage.getItem('featuredKagawad');
-  if (savedKagawad) {
-    setFeaturedKagawad(JSON.parse(savedKagawad));
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
-}, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -254,7 +264,7 @@ useEffect(() => {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" asChild className="bg-gradient-to-r from-government-blue to-primary">
-                  <Link to="/Projects">Explore Services <ArrowRight className="ml-2 h-5 w-5" /></Link>
+                  <Link to="/projects">Explore Services <ArrowRight className="ml-2 h-5 w-5" /></Link>
                 </Button>
                 <Button variant="outline" size="lg" asChild>
                   <Link to="/about">Learn More</Link>
@@ -295,7 +305,7 @@ useEffect(() => {
       {/* Stats Section */}
       <section className="py-16 bg-muted/30">
         <div className="container mx-auto px-4 grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
-          {stats.map((s, i) => (
+          {displayStats.map((s, i) => (
             <div key={i}>
               <div className="flex justify-center mb-4">
                 <div className="p-3 rounded-full bg-primary/10 text-primary">{s.icon}</div>
@@ -308,11 +318,13 @@ useEffect(() => {
       </section>
 
       {/* Kagawad of the Day Section */}
-      <section className="py-8">
-        <div className="container mx-auto px-4">
-          <KagawadOfTheDay kagawad={featuredKagawad} />
-        </div>
-      </section>
+      {featuredKagawad && (
+        <section className="py-8">
+          <div className="container mx-auto px-4">
+            <KagawadOfTheDay kagawad={featuredKagawad} />
+          </div>
+        </section>
+      )}
 
       {/* Announcements Section */}
       <section className="py-16">
@@ -322,24 +334,28 @@ useEffect(() => {
             <h2 className="text-3xl font-bold text-gray-900">Latest Announcements</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {announcements.map((announcement) => (
-              <Card key={announcement.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <Badge className={getAnnouncementBadge(announcement.type)}>
-                      {announcement.type.charAt(0).toUpperCase() + announcement.type.slice(1)}
-                    </Badge>
-                    <span className="text-sm text-gray-500">
-                      {formatDate(announcement.date)}
-                    </span>
-                  </div>
-                  <CardTitle className="text-lg">{announcement.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">{announcement.content}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {announcements.length > 0 ? (
+              announcements.map((announcement) => (
+                <Card key={announcement.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <Badge className={getAnnouncementBadge(announcement.priority)}>
+                        {(announcement.priority || 'info').toUpperCase()}
+                      </Badge>
+                      <span className="text-sm text-gray-500">
+                        {formatDate(announcement.created_at)}
+                      </span>
+                    </div>
+                    <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 line-clamp-3">{announcement.content}</p>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <p className="col-span-3 text-center text-muted-foreground">No announcements available</p>
+            )}
           </div>
           <div className="text-center mt-8">
             <Button asChild>
@@ -360,30 +376,34 @@ useEffect(() => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {recentAccomplishments.map((accomplishment) => (
-              <Card key={accomplishment.id} className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <Badge variant="secondary">{accomplishment.category}</Badge>
-                    <span className="text-sm text-muted-foreground">
-                      {formatDate(accomplishment.date)}
-                    </span>
-                  </div>
-                  <CardTitle className="text-xl group-hover:text-primary transition-colors">
-                    {accomplishment.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-gray-600 leading-relaxed">
-                    {accomplishment.description}
-                  </p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
-                    <span>{accomplishment.location}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {accomplishments.length > 0 ? (
+              accomplishments.map((accomplishment) => (
+                <Card key={accomplishment.id} className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <Badge variant="secondary">{accomplishment.category || 'General'}</Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {formatDate(accomplishment.created_at)}
+                      </span>
+                    </div>
+                    <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                      {accomplishment.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-gray-600 leading-relaxed line-clamp-3">
+                      {accomplishment.description}
+                    </p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span>{accomplishment.location || 'Barangay Tumana'}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <p className="col-span-3 text-center text-muted-foreground">No accomplishments available</p>
+            )}
           </div>
           
           <div className="text-center mt-8">
@@ -425,7 +445,6 @@ useEffect(() => {
       {/* Footer / Social Media Section */}
       <section className="py-12 bg-gray-900">
         <div className="container mx-auto px-4 text-center text-gray-300">
-          
           <h3 className="text-lg font-semibold text-white mb-6">
             SK Tumana 2023
           </h3>
@@ -459,12 +478,10 @@ useEffect(() => {
               <Mail size={18} />
               <span>sktumana.marikina@gmail.com</span>
             </a>
-
           </div>
           <p className="mt-8 text-xs text-gray-500">
             © {new Date().getFullYear()} SK Tumana. All rights reserved.
           </p>
-
         </div>
       </section>
     </div>

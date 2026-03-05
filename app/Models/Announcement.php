@@ -12,11 +12,12 @@ class Announcement extends Model
     protected $fillable = [
         'title',
         'content',
-        'full_content', // Add this
-        'date', // Add this
-        'author', // Add this
-        'priority', // Add this
-        'user_id',
+        'full_content', 
+        'date', 
+        'author',
+        'priority', 
+        'image',
+        'user_id'
     ];
 
     protected $casts = [

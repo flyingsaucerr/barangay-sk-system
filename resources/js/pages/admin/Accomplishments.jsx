@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Users, Loader2, Plus, X, Edit, Trash2, CheckCircle, XCircle, RefreshCw, FileText, Image as ImageIcon } from "lucide-react";
+import { Calendar, MapPin, Users, Loader2, Plus, X, Edit, Trash2, CheckCircle, RefreshCw, FileText, Image as ImageIcon } from "lucide-react";
+
+const API_BASE_URL = 'http://localhost:8000/api';
 
 const AdminAccomplishments = () => {
   const [accomplishments, setAccomplishments] = useState([]);
@@ -20,8 +22,7 @@ const AdminAccomplishments = () => {
     date_completed: "",
     photo: null,
     photo_preview: null,
-    is_published: true,
-    project_id: null // Track if this came from a project
+    project_id: null
   });
 
   // Get auth token from localStorage
@@ -67,30 +68,32 @@ const AdminAccomplishments = () => {
   useEffect(() => {
     fetchAccomplishments();
     
-    // Listen for project completion events (optional - for real-time updates)
-    const handleProjectCompleted = () => {
-      fetchAccomplishments();
-    };
-    
-    window.addEventListener('projectCompleted', handleProjectCompleted);
+    // Listen for real-time updates (if using Pusher/Echo)
+    if (window.Echo) {
+      window.Echo.channel('accomplishments')
+        .listen('.accomplishment.updated', () => {
+          fetchAccomplishments();
+        });
+    }
     
     return () => {
-      window.removeEventListener('projectCompleted', handleProjectCompleted);
+      if (window.Echo) {
+        window.Echo.leaveChannel('accomplishments');
+      }
     };
   }, []);
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }));
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData(prev => ({
@@ -162,13 +165,11 @@ const AdminAccomplishments = () => {
       
       const submitData = new FormData();
       submitData.append('title', formData.title);
-      submitData.append('description', formData.description);
-      submitData.append('location', formData.location);
+      submitData.append('description', formData.description || '');
+      submitData.append('location', formData.location || '');
       submitData.append('date_completed', formData.date_completed);
-      submitData.append('is_published', formData.is_published);
       
-      // Handle photo upload - only if user selected a new file
-      if (formData.photo) {
+      if (formData.photo && typeof formData.photo !== 'string') {
         submitData.append('photo', formData.photo);
       }
       
@@ -179,12 +180,11 @@ const AdminAccomplishments = () => {
       const authToken = getAuthToken();
       const csrfToken = getCsrfToken();
       
-      let url = '/api/accomplishments';
+      let url = `${API_BASE_URL}/accomplishments`;
       let method = 'POST';
 
       if (editingId) {
-        url = `/api/accomplishments/${editingId}`;
-        method = 'POST';
+        url = `${API_BASE_URL}/accomplishments/${editingId}`;
         submitData.append('_method', 'PUT');
       }
 
@@ -202,29 +202,14 @@ const AdminAccomplishments = () => {
       }
 
       const response = await fetch(url, {
-        method: method,
+        method: 'POST',
         body: submitData,
         headers: headers,
       });
 
       if (!response.ok) {
-        let errorMessage = `Server error: ${response.status}`;
-        
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
-          
-          if (response.status === 401) {
-            errorMessage = 'Authentication failed. Please log in again.';
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('userRole');
-            window.location.href = '/admin/login';
-          }
-        } catch (parseError) {
-          console.log('Could not parse submit error response');
-        }
-        
-        throw new Error(errorMessage);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Server error: ${response.status}`);
       }
 
       const savedAccomplishment = await response.json();
@@ -233,12 +218,13 @@ const AdminAccomplishments = () => {
         setAccomplishments(prev => 
           prev.map(item => item.id === editingId ? savedAccomplishment : item)
         );
+        alert('Accomplishment updated successfully!');
       } else {
         setAccomplishments(prev => [savedAccomplishment, ...prev]);
+        alert('Accomplishment added successfully!');
       }
       
       resetForm();
-      alert(`Accomplishment ${editingId ? 'updated' : 'added'} successfully!`);
       
     } catch (err) {
       console.error('Error saving accomplishment:', err);
@@ -256,11 +242,12 @@ const AdminAccomplishments = () => {
       location: accomplishment.location || "",
       date_completed: accomplishment.date_completed?.split('T')[0] || "",
       photo: null,
-      photo_preview: accomplishment.photo ? `/storage/${accomplishment.photo}` : null,
-      is_published: accomplishment.is_published !== false,
+      photo_preview: accomplishment.photo ? `${API_BASE_URL.replace('/api', '')}/storage/${accomplishment.photo}?t=${new Date().getTime()}` : null,
       project_id: accomplishment.project_id || null
     });
     setShowForm(true);
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
@@ -271,7 +258,6 @@ const AdminAccomplishments = () => {
       date_completed: "",
       photo: null,
       photo_preview: null,
-      is_published: true,
       project_id: null
     });
     setEditingId(null);
@@ -356,7 +342,7 @@ const AdminAccomplishments = () => {
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
             Create, edit, and manage barangay accomplishments. 
-            Accomplishments from completed projects are automatically added.
+            Accomplishments from completed projects are automatically added and synced.
           </p>
 
           {/* Action Buttons */}
@@ -394,10 +380,10 @@ const AdminAccomplishments = () => {
                 <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
               <div className="text-3xl font-bold text-green-600 mb-2">
-                {accomplishments.filter(a => a.is_published !== false).length}
+                {accomplishments.length}
               </div>
               <div className="text-gray-600 font-medium">
-                Published
+                All Published
               </div>
             </CardContent>
           </Card>
@@ -520,19 +506,6 @@ const AdminAccomplishments = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        name="is_published"
-                        checked={formData.is_published}
-                        onChange={handleInputChange}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <label className="text-sm font-medium text-gray-700">
-                        Publish immediately
-                      </label>
-                    </div>
-
                     {formData.project_id && (
                       <div className="bg-blue-50 p-3 rounded-lg">
                         <p className="text-sm text-blue-700 flex items-center gap-2">
@@ -597,7 +570,7 @@ const AdminAccomplishments = () => {
               <Badge className="bg-purple-100 text-purple-800 mx-1 inline-flex items-center">
                 From Project
               </Badge>{' '}
-              were automatically created from completed projects.
+              are automatically synced with projects.
             </div>
           </div>
 
@@ -609,7 +582,7 @@ const AdminAccomplishments = () => {
                   No Accomplishments Yet
                 </h3>
                 <p className="text-blue-700 mb-4">
-                  Get started by adding your first barangay accomplishment.
+                  Get started by adding your first barangay accomplishment or completing a project.
                 </p>
                 <Button 
                   className="mt-4"
@@ -643,15 +616,6 @@ const AdminAccomplishments = () => {
                     <div className={`w-full h-full ${!accomplishment.photo ? 'block' : 'hidden'} placeholder`}>
                       {getPlaceholderImage(accomplishment.title)}
                     </div>
-                    
-                    {/* Status Badge */}
-                    <Badge className={`absolute top-3 left-3 ${
-                      accomplishment.is_published !== false 
-                        ? 'bg-green-500 hover:bg-green-600' 
-                        : 'bg-yellow-500 hover:bg-yellow-600'
-                    } text-white border-0 cursor-pointer`}>
-                      {accomplishment.is_published !== false ? 'Published' : 'Draft'}
-                    </Badge>
 
                     {/* Location Badge */}
                     <Badge className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm text-gray-700 border-0 shadow-lg font-medium">
@@ -685,57 +649,33 @@ const AdminAccomplishments = () => {
                       </div>
                     </div>
 
-                    {/* Admin Actions */}
-                    <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                    {/* Admin Actions - Removed publish/unpublish toggle */}
+                    <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
                       <Button
-                        onClick={() => {
-                          const newStatus = !accomplishment.is_published;
-                          fetch(`/api/accomplishments/${accomplishment.id}`, {
-                            method: 'POST',
-                            headers: {
-                              'Authorization': `Bearer ${getAuthToken()}`,
-                              'Content-Type': 'application/json',
-                              'X-CSRF-TOKEN': getCsrfToken(),
-                            },
-                            body: JSON.stringify({
-                              is_published: newStatus,
-                              _method: 'PUT'
-                            })
-                          })
-                          .then(res => res.json())
-                          .then(updated => {
-                            setAccomplishments(prev =>
-                              prev.map(a => a.id === updated.id ? updated : a)
-                            );
-                          })
-                          .catch(err => console.error('Error toggling publish:', err));
-                        }}
-                        className={`px-3 py-1 rounded text-sm font-medium ${
-                          accomplishment.is_published
-                            ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                            : 'bg-green-100 text-green-700 hover:bg-green-200'
-                        } transition-colors`}
+                        onClick={() => handleEdit(accomplishment)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Edit"
                       >
-                        {accomplishment.is_published ? 'Unpublish' : 'Publish'}
+                        <Edit className="h-4 w-4" />
                       </Button>
-
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleEdit(accomplishment)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          onClick={() => handleDeleteAccomplishment(accomplishment.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        onClick={() => handleDeleteAccomplishment(accomplishment.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
+
+                    {/* Show warning if this is from a project */}
+                    {accomplishment.project_id && (
+                      <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                        <p className="flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          This accomplishment is synced with a project. Changes made here won't affect the original project.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -753,7 +693,7 @@ const AdminAccomplishments = () => {
             })}
           </p>
           <p className="text-gray-400 text-xs mt-2">
-            Accomplishments from projects are automatically synced.
+            Accomplishments from projects are automatically synced - when a project is marked as completed, an accomplishment is created; when a completed project is deleted, its accomplishment is also deleted.
           </p>
         </div>
       </div>

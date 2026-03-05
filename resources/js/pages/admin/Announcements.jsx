@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Megaphone, Search, Calendar, Plus, Edit, Trash2, X, User, Trophy, GraduationCap, Leaf, Users, Image as ImageIcon } from 'lucide-react';
 
-const Announcements = () => {
+const AdminAnnouncements = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -78,9 +78,10 @@ const Announcements = () => {
   };
 
 const getAnnouncementImage = (announcement) => {
-  // Check if announcement has an image (field name is 'image', not 'image_url')
   if (announcement.image) {
-    const imageUrl = `http://localhost:8000/storage/${announcement.image}`;
+    const timestamp = new Date().getTime();
+    const imageUrl = `/storage/${announcement.image}?t=${timestamp}`;
+    
     return (
       <img
         src={imageUrl}
@@ -90,20 +91,18 @@ const getAnnouncementImage = (announcement) => {
           console.error('Image failed to load:', imageUrl);
           e.target.onerror = null;
           e.target.style.display = 'none';
-          // Show placeholder on error
           const parent = e.target.parentNode;
           const placeholder = getPlaceholderContent(announcement);
-          // Replace the img with placeholder
-          const div = document.createElement('div');
-          div.className = `w-full h-48 ${getPlaceholderColor(announcement)} flex items-center justify-center`;
-          div.innerHTML = `<div class="text-center p-4"><div class="text-gray-500 text-sm">${announcement.title}</div></div>`;
-          parent.appendChild(div);
+          if (parent && !parent.querySelector('.placeholder-div')) {
+            const div = document.createElement('div');
+            div.className = `w-full h-48 ${getPlaceholderColor(announcement)} flex items-center justify-center placeholder-div`;
+            div.innerHTML = `<div class="text-center p-4"><div class="text-gray-500 text-sm">${announcement.title}</div></div>`;
+            parent.appendChild(div);
+          }
         }}
       />
     );
   }
-  
-  // Otherwise show placeholder
   return getPlaceholderContent(announcement);
 };
 
@@ -146,22 +145,29 @@ const getPlaceholderContent = (announcement) => {
     </div>
   );
 };
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
+const handleImageChange = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(null); 
+      setTimeout(() => {
         setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+      }, 10);
+    };
+    reader.readAsDataURL(file);
+  } else {
+    setImageFile(null);
+    setImagePreview(null);
+  }
+};
 
   const handleReadMore = (announcement) => {
     setSelectedAnnouncement(announcement);
     setShowReadMore(true);
   };
+
 const handleAddAnnouncement = async (e) => {
   e.preventDefault();
   
@@ -169,19 +175,9 @@ const handleAddAnnouncement = async (e) => {
     const token = localStorage.getItem('authToken');
     
     if (!token) {
-      console.error('No authentication token found. Please login first.');
       alert('Please login first to create announcements');
       return;
     }
-
-    console.log('=== DEBUG: Starting announcement creation ===');
-    console.log('1. Form data:', formData);
-    console.log('2. Image file:', imageFile ? {
-      name: imageFile.name,
-      type: imageFile.type,
-      size: imageFile.size,
-      lastModified: new Date(imageFile.lastModified).toLocaleString()
-    } : 'No image selected');
 
     const formDataToSend = new FormData();
     formDataToSend.append('title', formData.title);
@@ -189,52 +185,40 @@ const handleAddAnnouncement = async (e) => {
     formDataToSend.append('full_content', formData.full_content);
     formDataToSend.append('priority', formData.priority);
     
-    // Send tags as individual form fields with the same name
-    const tagsArray = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
-    console.log('3. Tags array:', tagsArray);
-    tagsArray.forEach(tag => {
-      formDataToSend.append('tags[]', tag);
-    });
+    // Handle tags - send as JSON string
+    if (formData.tags) {
+      const tagsArray = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+      formDataToSend.append('tags', JSON.stringify(tagsArray));
+    }
     
+    // Append image if exists - make sure it's the last field
     if (imageFile) {
-      console.log('4. Appending image file to FormData');
       formDataToSend.append('image', imageFile);
-    } else {
-      console.log('4. No image file to append');
     }
 
-    // Log FormData contents (for debugging)
-    console.log('5. FormData contents:');
+    // Log what we're sending
+    console.log('Sending FormData:');
     for (let pair of formDataToSend.entries()) {
       if (pair[0] === 'image') {
-        console.log(`   - ${pair[0]}: [File: ${pair[1].name}, type: ${pair[1].type}, size: ${pair[1].size} bytes]`);
-      } else if (pair[0].startsWith('tags[]')) {
-        console.log(`   - ${pair[0]}: ${pair[1]}`);
+        console.log(`- ${pair[0]}: File (${pair[1].name}, ${pair[1].type}, ${pair[1].size} bytes)`);
       } else {
-        console.log(`   - ${pair[0]}: ${pair[1]}`);
+        console.log(`- ${pair[0]}: ${pair[1]}`);
       }
     }
-
-    console.log('6. Sending request to: http://localhost:8000/api/announcements');
-    console.log('7. Auth token exists:', !!token);
 
     const response = await fetch('http://localhost:8000/api/announcements', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',
-        // Don't set Content-Type header - browser will set it with boundary
+        // DO NOT set Content-Type header
       },
       body: formDataToSend,
     });
 
-    console.log('8. Response status:', response.status);
-    console.log('9. Response headers:', Object.fromEntries(response.headers.entries()));
-
     if (response.ok) {
       const responseData = await response.json();
-      console.log('10. Success! Response data:', responseData);
-      console.log('11. Image path in response:', responseData.image);
+      console.log('Success:', responseData);
       
       await fetchAnnouncements();
       setShowAddForm(false);
@@ -242,19 +226,17 @@ const handleAddAnnouncement = async (e) => {
       alert('Announcement created successfully!');
     } else {
       const errorText = await response.text();
-      console.error('Failed to create announcement. Status:', response.status);
       console.error('Error response:', errorText);
-
+      
       try {
         const errorJson = JSON.parse(errorText);
-        console.error('Error details:', errorJson);
-        alert('Failed to create announcement: ' + (errorJson.message || errorText));
+        alert('Failed to create announcement: ' + (errorJson.message || JSON.stringify(errorJson.errors)));
       } catch {
         alert('Failed to create announcement: ' + errorText);
       }
     }
   } catch (error) {
-    console.error('Error creating announcement:', error);
+    console.error('Error:', error);
     alert('Error creating announcement: ' + error.message);
   }
 };
@@ -264,48 +246,20 @@ const handleEditAnnouncement = async (e) => {
   try {
     const token = localStorage.getItem('authToken');
     
-    console.log('=== DEBUG: Starting announcement update ===');
-    console.log('1. Editing announcement ID:', selectedAnnouncement.id);
-    console.log('2. Form data:', formData);
-    console.log('3. Image file:', imageFile ? {
-      name: imageFile.name,
-      type: imageFile.type,
-      size: imageFile.size
-    } : 'No new image selected');
-    console.log('4. Existing image preview:', imagePreview);
-
     const formDataToSend = new FormData();
     formDataToSend.append('title', formData.title);
     formDataToSend.append('content', formData.content);
     formDataToSend.append('full_content', formData.full_content);
     formDataToSend.append('priority', formData.priority);
-    
-    // Send tags as individual form fields with the same name
-    const tagsArray = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
-    console.log('5. Tags array:', tagsArray);
-    tagsArray.forEach(tag => {
-      formDataToSend.append('tags[]', tag);
-    });
-    
     formDataToSend.append('_method', 'PUT');
     
-    if (imageFile) {
-      console.log('6. Appending new image file to FormData');
-      formDataToSend.append('image', imageFile);
-    } else {
-      console.log('6. No new image file to append');
+    if (formData.tags) {
+      const tagsArray = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+      formDataToSend.append('tags', JSON.stringify(tagsArray));
     }
-
-    // Log FormData contents
-    console.log('7. FormData contents:');
-    for (let pair of formDataToSend.entries()) {
-      if (pair[0] === 'image') {
-        console.log(`   - ${pair[0]}: [File: ${pair[1].name}]`);
-      } else if (pair[0].startsWith('tags[]')) {
-        console.log(`   - ${pair[0]}: ${pair[1]}`);
-      } else {
-        console.log(`   - ${pair[0]}: ${pair[1]}`);
-      }
+    
+    if (imageFile) {
+      formDataToSend.append('image', imageFile);
     }
 
     const response = await fetch(`http://localhost:8000/api/announcements/${selectedAnnouncement.id}`, {
@@ -317,25 +271,29 @@ const handleEditAnnouncement = async (e) => {
       body: formDataToSend,
     });
 
-    console.log('8. Update response status:', response.status);
-
     if (response.ok) {
       const responseData = await response.json();
-      console.log('9. Update success! Response data:', responseData);
-      console.log('10. Updated image path:', responseData.image);
+      console.log('Update success:', responseData);
       
       await fetchAnnouncements();
+      
+      if (responseData.announcement) {
+        setSelectedAnnouncement(responseData.announcement);
+      } else {
+        setSelectedAnnouncement(responseData);
+      }
+      
       setShowEditForm(false);
       setShowReadMore(false);
       resetForm();
       alert('Announcement updated successfully!');
     } else {
       const errorText = await response.text();
-      console.error('Failed to update announcement:', response.status, errorText);
+      console.error('Update error:', errorText);
       alert('Failed to update announcement: ' + errorText);
     }
   } catch (error) {
-    console.error('Error updating announcement:', error);
+    console.error('Error:', error);
     alert('Error updating announcement: ' + error.message);
   }
 };
@@ -380,12 +338,14 @@ const handleEditClick = (announcement) => {
     tags: announcement.tags ? announcement.tags.map(tag => tag.name).join(', ') : ''
   });
   
-  // Use 'image' instead of 'image_url'
+  setImageFile(null);
+  setImagePreview(null);
+  
   if (announcement.image) {
-    setImagePreview(`http://localhost:8000/storage/${announcement.image}`);
-  } else {
-    setImagePreview(null);
+    const timestamp = new Date().getTime();
+    setImagePreview(`http://localhost:8000/storage/${announcement.image}?t=${timestamp}`);
   }
+  
   setShowEditForm(true);
   setShowReadMore(false);
 };
@@ -705,18 +665,19 @@ const handleEditClick = (announcement) => {
             
             <div className="p-6 space-y-6">
             {/* Announcement Image in Modal */}
-            {selectedAnnouncement.image && (
-              <div className="rounded-lg overflow-hidden">
-                <img
-                  src={`http://localhost:8000/storage/${selectedAnnouncement.image}`}
-                  alt={selectedAnnouncement.title}
-                  className="w-full max-h-96 object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.style.display = 'none';
-                  }}
-                />
-              </div>
+              {selectedAnnouncement.image && (
+                <div className="rounded-lg overflow-hidden">
+                  <img
+                    src={`/storage/${selectedAnnouncement.image}?t=${new Date().getTime()}`}
+                    alt={selectedAnnouncement.title}
+                    className="w-full max-h-96 object-cover"
+                    onError={(e) => {
+                      console.error('Modal image failed to load:', `/storage/${selectedAnnouncement.image}`);
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
               )}
 
               {/* Header Info */}
@@ -779,4 +740,4 @@ const handleEditClick = (announcement) => {
   );
 };
 
-export default Announcements;
+export default AdminAnnouncements;

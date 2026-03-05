@@ -14,6 +14,7 @@ use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\KKIDProfileController;
 use App\Http\Controllers\FilePrintingController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AchievementController;
 
 Route::options('/{any}', function () {
     return response('', 200)
@@ -45,53 +46,6 @@ Route::get('/debug-test', function() {
     ]);
 });
 
-Route::get('/admin/printing/debug/file-storage', function () {
-    try {
-        $files = Storage::disk('public')->allFiles('printing-requests');
-        
-        $fileDetails = [];
-        foreach ($files as $file) {
-            $fileDetails[] = [
-                'path' => $file,
-                'size' => Storage::disk('public')->size($file),
-                'mime_type' => Storage::disk('public')->mimeType($file),
-                'url' => Storage::disk('public')->url($file),
-                'exists' => Storage::disk('public')->exists($file)
-            ];
-        }
-        
-        // Get all printing requests
-        $requests = \App\Models\FilePrintingRequest::all();
-        $requestFiles = [];
-        
-        foreach ($requests as $request) {
-            $files = $request->files;
-            if (is_string($files)) {
-                $files = json_decode($files, true);
-            }
-            
-            $requestFiles[] = [
-                'id' => $request->id,
-                'tracking' => $request->tracking_number,
-                'files' => $files,
-                'files_count' => is_array($files) ? count($files) : 0
-            ];
-        }
-        
-        return response()->json([
-            'success' => true,
-            'storage_files' => $fileDetails,
-            'requests' => $requestFiles
-        ]);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage()
-        ], 500);
-    }
-});
-
 // Authentication routes
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
@@ -108,16 +62,15 @@ Route::get('/login', function () {
     ]);
 })->name('login');
 
-Route::get('/kagawad/featured', [KagawadController::class, 'getFeatured']);
-Route::get('/kagawad', [KagawadController::class, 'index']);
-
 // Public APIs (No authentication required)
 Route::middleware('api')->group(function () {
     // Public content
+    Route::get('/kagawad/featured', [KagawadController::class, 'getFeatured']);
+    Route::get('/kagawad', [KagawadController::class, 'index']);
     Route::get('/announcements', [AnnouncementController::class, 'index']);
     Route::get('/facilities', [FacilityController::class, 'index']);
-    Route::get('/accomplishments', [AccomplishmentController::class, 'index']);
-    Route::get('/accomplishments/{id}', [AccomplishmentController::class, 'show']);
+    Route::get('/accomplishments', [AccomplishmentController::class, 'publicIndex']);
+    Route::get('/accomplishments/{id}', [AccomplishmentController::class, 'publicShow']);
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::get('/projects/{id}', [ProjectController::class, 'show']);
     Route::get('/disclosures', [DisclosureController::class, 'index']);
@@ -134,11 +87,16 @@ Route::middleware('api')->group(function () {
 
     // File Printing
     Route::prefix('printing')->group(function () {
-    Route::post('/submit', [FilePrintingController::class, 'store']);
-    Route::post('/submit-with-files', [FilePrintingController::class, 'storeWithFiles']);
-    Route::post('/upload-files', [FilePrintingController::class, 'uploadFiles']);
-    Route::post('/check-status', [FilePrintingController::class, 'checkStatus']);
-});
+        Route::post('/submit', [FilePrintingController::class, 'store']);
+        Route::post('/submit-with-files', [FilePrintingController::class, 'storeWithFiles']);
+        Route::post('/upload-files', [FilePrintingController::class, 'uploadFiles']);
+        Route::post('/check-status', [FilePrintingController::class, 'checkStatus']);
+    });
+    
+    Route::get('/achievements', [AchievementController::class, 'index']);
+    Route::post('/achievements', [AchievementController::class, 'store']);
+    Route::put('/achievements/{id}', [AchievementController::class, 'update']);
+    Route::delete('/achievements/{id}', [AchievementController::class, 'destroy']);
 });
 
 // Protected APIs (Admin only - require auth)
@@ -157,6 +115,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update']);
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy']);
+    Route::get('/announcements/debug-image/{id}', [AnnouncementController::class, 'debugImage'])->middleware('auth:sanctum');
     
     // Facilities Admin
     Route::post('/facilities', [FacilityController::class, 'store']);
@@ -169,7 +128,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
 
     // Requests Management (Admin only)
-    
     Route::prefix('admin')->group(function () {
         Route::get('/staff', [RequestController::class, 'getStaffUsers']);
         Route::get('/requests', [RequestController::class, 'adminIndex']);
@@ -181,9 +139,12 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Accomplishments Admin
+    Route::get('/admin/accomplishments', [AccomplishmentController::class, 'index']);
     Route::post('/accomplishments', [AccomplishmentController::class, 'store']);
     Route::put('/accomplishments/{id}', [AccomplishmentController::class, 'update']);
     Route::delete('/accomplishments/{id}', [AccomplishmentController::class, 'destroy']);
+    Route::post('/accomplishments/{id}/publish', [AccomplishmentController::class, 'publish']);
+    Route::post('/accomplishments/{id}/unpublish', [AccomplishmentController::class, 'unpublish']);
 
     // Disclosure Board Admin
     Route::post('/disclosures', [DisclosureController::class, 'store']);
@@ -213,13 +174,13 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // File Printing
-Route::prefix('admin/printing')->group(function () {
-    Route::get('/', [FilePrintingController::class, 'index']);
-    Route::get('/{id}', [FilePrintingController::class, 'show']);
-    Route::get('/{id}/download/{filename}', [FilePrintingController::class, 'downloadFile']); // This is the download route
-    Route::get('/{id}/file/{filename}/url', [FilePrintingController::class, 'getFileUrl']);
-    Route::get('/debug/file-storage', [FilePrintingController::class, 'debugFileStorage']); // Add debug route
-    Route::patch('/{id}/status', [FilePrintingController::class, 'updateStatus']);
-    Route::delete('/{id}', [FilePrintingController::class, 'destroy']);
-});
+    Route::prefix('admin/printing')->group(function () {
+        Route::get('/', [FilePrintingController::class, 'index']);
+        Route::get('/{id}', [FilePrintingController::class, 'show']);
+        Route::get('/{id}/download/{filename}', [FilePrintingController::class, 'downloadFile']);
+        Route::get('/{id}/file/{filename}/url', [FilePrintingController::class, 'getFileUrl']);
+        Route::get('/debug/file-storage', [FilePrintingController::class, 'debugFileStorage']);
+        Route::patch('/{id}/status', [FilePrintingController::class, 'updateStatus']);
+        Route::delete('/{id}', [FilePrintingController::class, 'destroy']);
+    });
 });

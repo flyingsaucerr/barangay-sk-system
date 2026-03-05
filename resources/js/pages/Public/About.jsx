@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -6,9 +6,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, MapPin, Phone, Mail, Award, Heart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, MapPin, Phone, Mail, Award, Heart, Loader2 } from "lucide-react";
 
-// ✅ Proper imports (Vite supports ESM imports, not require)
 import sk1 from "@/assets/sk1.jpg";
 import sk2 from "@/assets/sk2.jpg";
 import sk3 from "@/assets/sk3.jpg";
@@ -17,9 +17,46 @@ import sk5 from "@/assets/sk5.jpg";
 import sk6 from "@/assets/sk6.jpg";
 import sk7 from "@/assets/sk7.jpg";
 import sk8 from "@/assets/sk8.jpg";
-import barangayHall from "@/assets/barangayHall.jpg";
+
+const API_URL = 'http://localhost:8000/api'; // Change this to your Laravel URL
 
 const About = () => {
+  const [achievements, setAchievements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchAchievements();
+  }, []);
+
+  const fetchAchievements = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_URL}/achievements`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setAchievements(data);
+      } else {
+        console.warn('API response is not an array:', data);
+        setAchievements([]);
+      }
+    } catch (error) {
+      console.error('Error fetching achievements:', error);
+      setError(error.message);
+      setAchievements([]); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const officials = [
     {
       id: 1,
@@ -155,26 +192,6 @@ const About = () => {
     },
   ];
 
-  const achievements = [
-    {
-      year: "2023",
-      title: "Outstanding Barangay Award",
-      description:
-        "Recognized for excellence in community service and governance.",
-    },
-    {
-      year: "2022",
-      title: "Clean and Green Recognition",
-      description: "Awarded for environmental initiatives and cleanliness programs.",
-    },
-    {
-      year: "2021",
-      title: "Community Development Excellence",
-      description:
-        "Recognized for outstanding community development projects.",
-    },
-  ];
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto">
@@ -262,7 +279,6 @@ const About = () => {
             Barangay Officials
           </h2>
 
-          {/* ⬇Updated grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {officials.map((official) => {
               const isChairman = official.position === "SK Chairman";
@@ -275,50 +291,50 @@ const About = () => {
                   `}
                 >
                   <CardContent className="p-6">
-  {/* Image */}
-  <div
-    className={`mx-auto mb-4 rounded-full bg-muted overflow-hidden ${
-      isChairman ? "w-40 h-40" : "w-24 h-24"
-    }`}
-  >
-    <img
-      src={official.image}
-      alt={official.name}
-      className="w-full h-full object-cover transform -scale-x-100"
-    />
-  </div>
+                    {/* Image */}
+                    <div
+                      className={`mx-auto mb-4 rounded-full bg-muted overflow-hidden ${
+                        isChairman ? "w-40 h-40" : "w-24 h-24"
+                      }`}
+                    >
+                      <img
+                        src={official.image}
+                        alt={official.name}
+                        className="w-full h-full object-cover transform -scale-x-100"
+                      />
+                    </div>
 
-  {/* Name */}
-  <h3
-    className={`font-bold text-foreground mb-1 ${
-      isChairman ? "text-2xl" : "text-lg"
-    }`}
-  >
-    {official.name}
-  </h3>
+                    {/* Name */}
+                    <h3
+                      className={`font-bold text-foreground mb-1 ${
+                        isChairman ? "text-2xl" : "text-lg"
+                      }`}
+                    >
+                      {official.name}
+                    </h3>
 
-  {/* Position */}
-  <Badge
-    variant="outline"
-    className={`mb-3 ${isChairman ? "text-base px-4 py-1" : ""}`}
-  >
-    {official.position}
-  </Badge>
+                    {/* Position */}
+                    <Badge
+                      variant="outline"
+                      className={`mb-3 ${isChairman ? "text-base px-4 py-1" : ""}`}
+                    >
+                      {official.position}
+                    </Badge>
 
-  {/* Committees */}
-  {official.committees && official.committees.length > 0 && (
-    <div className="text-left mt-2 text-sm text-muted-foreground">
-      <p className="font-semibold mb-1">Committees:</p>
-      <ul className="list-disc list-inside space-y-1">
-        {official.committees.map((c, idx) => (
-          <li key={idx}>
-            <span className="font-medium">{c.name}</span> - {c.role}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )}
-</CardContent>
+                    {/* Committees */}
+                    {official.committees && official.committees.length > 0 && (
+                      <div className="text-left mt-2 text-sm text-muted-foreground">
+                        <p className="font-semibold mb-1">Committees:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          {official.committees.map((c, idx) => (
+                            <li key={idx}>
+                              <span className="font-medium">{c.name}</span> - {c.role}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CardContent>
                 </Card>
               );
             })}
@@ -330,23 +346,51 @@ const About = () => {
           <h2 className="text-3xl font-bold text-center text-foreground mb-8">
             Recent Achievements
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {achievements.map((achievement, index) => (
-              <Card key={index} className="text-center">
-                <CardContent className="p-6">
-                  <div className="text-3xl font-bold text-primary mb-2">
-                    {achievement.year}
-                  </div>
-                  <h3 className="font-bold text-lg text-foreground mb-2">
-                    {achievement.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {achievement.description}
+          
+          {loading ? (
+            <div className="text-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+              <p className="mt-2 text-muted-foreground">Loading achievements...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-500">Error loading achievements: {error}</p>
+              <Button 
+                onClick={fetchAchievements} 
+                variant="outline" 
+                className="mt-4"
+              >
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {achievements && achievements.length > 0 ? (
+                achievements.map((achievement) => (
+                  <Card key={achievement.id || Math.random()} className="text-center">
+                    <CardContent className="p-6">
+                      <div className="text-3xl font-bold text-primary mb-2">
+                        {achievement.year || 'N/A'}
+                      </div>
+                      <h3 className="font-bold text-lg text-foreground mb-2">
+                        {achievement.title || 'Untitled'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {achievement.description || 'No description'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="col-span-3 text-center py-12">
+                  <Award className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">
+                    No achievements to display yet.
                   </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Contact Info */}
