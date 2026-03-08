@@ -62,6 +62,14 @@ Route::get('/login', function () {
     ]);
 })->name('login');
 
+Route::get('/public/stats', function() {
+    return response()->json([
+        'completed_requests' => \App\Models\Request::where('status', 'completed')->count(),
+        'active_projects' => \App\Models\Project::where('status', 'active')->count(),
+        'accomplishments' => \App\Models\Accomplishment::count(),
+    ]);
+});
+
 // Public APIs (No authentication required)
 Route::middleware('api')->group(function () {
     // Public content

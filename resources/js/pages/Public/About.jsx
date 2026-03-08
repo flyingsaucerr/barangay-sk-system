@@ -9,14 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, MapPin, Phone, Mail, Award, Heart, Loader2 } from "lucide-react";
 
-import sk1 from "@/assets/sk1.jpg";
-import sk2 from "@/assets/sk2.jpg";
-import sk3 from "@/assets/sk3.jpg";
-import sk4 from "@/assets/sk4.jpg";
-import sk5 from "@/assets/sk5.jpg";
-import sk6 from "@/assets/sk6.jpg";
-import sk7 from "@/assets/sk7.jpg";
-import sk8 from "@/assets/sk8.jpg";
+import sk1_cj from "@/assets/sk1_cj.jpg";
+import sk2_melody from "@/assets/sk2_melody.jpg";
+import sk3_moana from "@/assets/sk3_moana.jpg";
+import sk4_dollar from "@/assets/sk4_dollar.jpg";
+import sk5_paul from "@/assets/sk5_paul.jpg";
+import sk6_danilo from "@/assets/sk6_danilo.jpg";
+import sk7_rie from "@/assets/sk7_rie.jpg";
+import sk8_jemimah from "@/assets/sk8_jemimah.jpg";
 
 const API_URL = 'http://localhost:8000/api'; // Change this to your Laravel URL
 
@@ -62,7 +62,7 @@ const About = () => {
       id: 1,
       name: "CJ Ancheta",
       position: "SK Chairman",
-      image: sk1,
+      image: sk1_cj,
       committees: [
         {
           name: "COMMITTEE ON HEALTH, HEALTH SERVICES AND REPRODUCTIVE HEALTH",
@@ -74,7 +74,7 @@ const About = () => {
       id: 2,
       name: "Melody Acuin",
       position: "SK Kagawad",
-      image: sk2,
+      image: sk2_melody,
       committees: [
         {
           name: "COMMITTEE ON LIVELIHOOD AND YOUTH EMPLOYMENT",
@@ -94,7 +94,7 @@ const About = () => {
       id: 3,
       name: "Moana Calanda",
       position: "SK Kagawad",
-      image: sk3,
+      image: sk3_moana,
       committees: [
         {
           name: "COMMITTEE ON LIVELIHOOD AND YOUTH EMPLOYMENT",
@@ -110,7 +110,7 @@ const About = () => {
       id: 4,
       name: "Dollar Cristal",
       position: "SK Kagawad",
-      image: sk4,
+      image: sk4_dollar,
       committees: [
         {
           name: "COMMITTEE ON HEALTH, HEALTH SERVICES AND REPRODUCTIVE HEALTH",
@@ -122,7 +122,7 @@ const About = () => {
       id: 5,
       name: "Paul Bandril",
       position: "SK Kagawad",
-      image: sk5,
+      image: sk5_paul,
       committees: [
         {
           name: "COMMITTEE ON SPORTS DEVELOPMENT",
@@ -142,7 +142,7 @@ const About = () => {
       id: 6,
       name: "Danilo Cervantes",
       position: "SK Kagawad",
-      image: sk6,
+      image: sk6_danilo,
       committees: [
         {
           name: "COMMITTEE ON ANTI DRUG ABUSE AND SOCIAL PROTECTION",
@@ -154,7 +154,7 @@ const About = () => {
       id: 7,
       name: "Rie Alden Borlongan",
       position: "SK Kagawad",
-      image: sk7,
+      image: sk7_rie,
       committees: [
         {
           name: "COMMITTEE ON SPORTS DEVELOPMENT",
@@ -174,7 +174,7 @@ const About = () => {
       id: 8,
       name: "Jemimah Isipin",
       position: "SK Kagawad",
-      image: sk8,
+      image: sk8_jemimah,
       committees: [
         {
           name: "COMMITTEE ON HEALTH, HEALTH SERVICES AND REPRODUCTIVE HEALTH",

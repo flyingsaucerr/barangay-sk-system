@@ -39,6 +39,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+import sk1_cj from "@/assets/sk1_cj.jpg";
+import sk2_melody from "@/assets/sk2_melody.jpg";
+import sk3_moana from "@/assets/sk3_moana.jpg";
+import sk4_dollar from "@/assets/sk4_dollar.jpg";
+import sk5_paul from "@/assets/sk5_paul.jpg";
+import sk6_danilo from "@/assets/sk6_danilo.jpg";
+import sk7_rie from "@/assets/sk7_rie.jpg";
+import sk8_jemimah from "@/assets/sk8_jemimah.jpg";
 
 // StatsCard Component (keep for dashboard stats if needed)
 const StatsCard = ({ title, value, icon: Icon, description }) => (
@@ -68,7 +76,8 @@ const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
     email: '',
     address: '',
     dateStarted: '',
-    photo: null
+    photo: null,
+    photoFile: null // Add this for file uploads
   });
 
   useEffect(() => {
@@ -81,7 +90,8 @@ const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
         email: kagawad.email || '',
         address: kagawad.address || '',
         dateStarted: kagawad.dateStarted || '',
-        photo: kagawad.photo || null
+        photo: kagawad.photo || null,
+        photoFile: null
       });
     }
   }, [kagawad]);
@@ -91,14 +101,24 @@ const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, photo: reader.result });
+        setFormData({ 
+          ...formData, 
+          photo: reader.result,
+          photoFile: file 
+        });
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleSubmit = () => {
-    onSave({ ...kagawad, ...formData });
+    // If a new photo was uploaded, use it; otherwise keep the original
+    const updatedKagawad = {
+      ...kagawad,
+      ...formData,
+      photo: formData.photo // This will be either the original imported image or the new uploaded one
+    };
+    onSave(updatedKagawad);
     onClose();
   };
 
@@ -119,7 +139,15 @@ const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
             <div className="flex items-center gap-4">
               <div className="w-24 h-24 rounded-lg overflow-hidden bg-muted">
                 {formData.photo ? (
-                  <img src={formData.photo} alt="Preview" className="w-full h-full object-cover" />
+                  <img 
+                    src={formData.photo} 
+                    alt="Preview" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.error('Image failed to load');
+                      e.target.src = ''; // Clear on error
+                    }}
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-primary/10">
                     <Users className="h-8 w-8 text-primary/50" />
@@ -140,7 +168,7 @@ const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
             </div>
           </div>
 
-          {/* Basic Information */}
+          {/* Rest of the form remains the same */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
@@ -173,7 +201,6 @@ const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
             />
           </div>
 
-          {/* Contact Information */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="contact">Contact Number</Label>
@@ -294,7 +321,6 @@ const AddActivityModal = ({ isOpen, onClose, onSave }) => {
   );
 };
 
-// Select New Kagawad Modal
 const SelectKagawadModal = ({ isOpen, onClose, kagawads, onSelect }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -320,7 +346,15 @@ const SelectKagawadModal = ({ isOpen, onClose, kagawads, onSelect }) => {
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full overflow-hidden bg-muted">
                     {k.photo ? (
-                      <img src={k.photo} alt={k.name} className="w-full h-full object-cover" />
+                      <img 
+                        src={k.photo} 
+                        alt={k.name} 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          console.error('Failed to load image for', k.name);
+                          e.target.src = ''; // Clear on error
+                        }}
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-primary/10">
                         <Users className="h-6 w-6 text-primary/50" />
@@ -488,12 +522,12 @@ const AdminDashboard = () => {
   }, []);
 
   // All kagawads list
-  const [allKagawads, setAllKagawads] = useState([
+const [allKagawads, setAllKagawads] = useState([
   {
     id: '1',
     name: 'CJ Ancheta',
     position: 'SK Chairman',
-    photo: null,
+    photo: sk1_cj, // Use imported image directly
     bio: 'Dedicated to serving the youth of our barangay with passion and commitment. Leads various community programs and youth development initiatives.',
     contact: '+63 912 345 6789',
     email: 'cj.ancheta@skbarangay.gov.ph',
@@ -514,12 +548,12 @@ const AdminDashboard = () => {
   },
   {
     id: '2',
-    name: 'Dollar Cristal',
+    name: 'Melody Acuin', // Fixed: Changed from Dollar Cristal to Melody
     position: 'SK Kagawad',
-    photo: null,
+    photo: sk2_melody, // Use imported image
     bio: 'Passionate about health programs and youth engagement. Regularly conducts seminars and workshops for teens.',
     contact: '+63 915 678 2345',
-    email: 'dollar.cristal@skbarangay.gov.ph',
+    email: 'melody.acuin@skbarangay.gov.ph', // Fixed email
     address: 'Barangay Tumana, Marikina City',
     dateStarted: 'February 2023',
     recentActivities: [
@@ -532,30 +566,30 @@ const AdminDashboard = () => {
   },
   {
     id: '3',
-    name: 'Jemimah Keziah Isipin',
+    name: 'Moanna Maye Calanda', // Fixed: Changed from Jemimah to Moanna
     position: 'SK Kagawad',
-    photo: null,
-    bio: 'Focuses on education and gender development programs for the youth. Actively participates in community learning events.',
-    contact: '+63 917 345 6780',
-    email: 'jemimah.isipin@skbarangay.gov.ph',
+    photo: sk3_moana, // Use imported image
+    bio: 'Environmental advocate and youth community organizer. Leads disaster preparedness and eco-awareness campaigns.',
+    contact: '+63 921 234 5679',
+    email: 'moanna.calanda@skbarangay.gov.ph', // Fixed email
     address: 'Barangay Tumana, Marikina City',
-    dateStarted: 'March 2023',
+    dateStarted: 'July 2023',
     recentActivities: [
       {
-        title: 'Women Empowerment Seminar',
-        date: '2024-01-18',
-        description: 'Led a seminar promoting leadership and empowerment among young women.'
+        title: 'Barangay Tree Planting',
+        date: '2024-02-15',
+        description: 'Led a tree planting activity in the barangay park with volunteers from the youth council.'
       }
     ]
   },
   {
     id: '4',
-    name: 'Paul Michael Bandril',
+    name: 'Dollar Cristal', // Fixed: Changed from Paul to Dollar
     position: 'SK Kagawad',
-    photo: null,
+    photo: sk4_dollar, // Use imported image
     bio: 'Sports enthusiast and youth advocate. Organizes sports tournaments and promotes healthy lifestyles.',
     contact: '+63 918 234 5678',
-    email: 'paul.bandril@skbarangay.gov.ph',
+    email: 'dollar.cristal@skbarangay.gov.ph', // Fixed email
     address: 'Barangay Tumana, Marikina City',
     dateStarted: 'April 2023',
     recentActivities: [
@@ -568,12 +602,12 @@ const AdminDashboard = () => {
   },
   {
     id: '5',
-    name: 'Rie Alden Borlongan',
+    name: 'Paul Michael Bandril', // Fixed: Changed from Rie to Paul
     position: 'SK Kagawad',
-    photo: null,
+    photo: sk5_paul, // Use imported image
     bio: 'Champion of cultural and educational activities for the youth. Coordinates community arts and literacy programs.',
     contact: '+63 919 876 5432',
-    email: 'rie.borlongan@skbarangay.gov.ph',
+    email: 'paul.bandril@skbarangay.gov.ph', // Fixed email
     address: 'Barangay Tumana, Marikina City',
     dateStarted: 'May 2023',
     recentActivities: [
@@ -586,12 +620,12 @@ const AdminDashboard = () => {
   },
   {
     id: '6',
-    name: 'Melody Acuin',
+    name: 'Danilo Cervantes', // Fixed: Changed from Melody to Danilo
     position: 'SK Kagawad',
-    photo: null,
+    photo: sk6_danilo, // Use imported image
     bio: 'Passionate about livelihood projects and environmental protection. Helps youth with career guidance and eco-initiatives.',
     contact: '+63 920 567 8912',
-    email: 'melody.acuin@skbarangay.gov.ph',
+    email: 'danilo.cervantes@skbarangay.gov.ph', // Fixed email
     address: 'Barangay Tumana, Marikina City',
     dateStarted: 'June 2023',
     recentActivities: [
@@ -604,30 +638,12 @@ const AdminDashboard = () => {
   },
   {
     id: '7',
-    name: 'Moanna Maye Calanda',
+    name: 'Rie Alden Borlongan', // Fixed: Changed from Moanna to Rie
     position: 'SK Kagawad',
-    photo: null,
-    bio: 'Environmental advocate and youth community organizer. Leads disaster preparedness and eco-awareness campaigns.',
-    contact: '+63 921 234 5679',
-    email: 'moanna.calanda@skbarangay.gov.ph',
-    address: 'Barangay Tumana, Marikina City',
-    dateStarted: 'July 2023',
-    recentActivities: [
-      {
-        title: 'Barangay Tree Planting',
-        date: '2024-02-15',
-        description: 'Led a tree planting activity in the barangay park with volunteers from the youth council.'
-      }
-    ]
-  },
-  {
-    id: '8',
-    name: 'Danilo Cervantes',
-    position: 'SK Kagawad',
-    photo: null,
+    photo: sk7_rie, // Use imported image
     bio: 'Focused on anti-drug programs and social protection initiatives. Engages with youth in community awareness campaigns.',
     contact: '+63 922 345 6781',
-    email: 'danilo.cervantes@skbarangay.gov.ph',
+    email: 'rie.borlongan@skbarangay.gov.ph', // Fixed email
     address: 'Barangay Tumana, Marikina City',
     dateStarted: 'August 2023',
     recentActivities: [
@@ -635,6 +651,24 @@ const AdminDashboard = () => {
         title: 'Anti-Drug Awareness Campaign',
         date: '2024-03-05',
         description: 'Conducted seminars and street campaigns educating youth on anti-drug awareness.'
+      }
+    ]
+  },
+  {
+    id: '8',
+    name: 'Jemimah Keziah Isipin', // Fixed: Changed from Danilo to Jemimah
+    position: 'SK Kagawad',
+    photo: sk8_jemimah, // Use imported image
+    bio: 'Focuses on education and gender development programs for the youth. Actively participates in community learning events.',
+    contact: '+63 917 345 6780',
+    email: 'jemimah.isipin@skbarangay.gov.ph', // Fixed email
+    address: 'Barangay Tumana, Marikina City',
+    dateStarted: 'March 2023',
+    recentActivities: [
+      {
+        title: 'Women Empowerment Seminar',
+        date: '2024-01-18',
+        description: 'Led a seminar promoting leadership and empowerment among young women.'
       }
     ]
   }
@@ -664,17 +698,24 @@ const AdminDashboard = () => {
     setShowEditModal(true);
   };
 
-  const handleSaveKagawad = (updatedKagawad) => {
-    setFeaturedKagawad(updatedKagawad);
-    
-    // Update in allKagawads list
-    setAllKagawads(allKagawads.map(k => 
+const handleSaveKagawad = (updatedKagawad) => {
+  setFeaturedKagawad(updatedKagawad);
+  
+  // Update in allKagawads list - preserve the photo
+  setAllKagawads(prevKagawads => 
+    prevKagawads.map(k => 
       k.id === updatedKagawad.id ? updatedKagawad : k
-    ));
+    )
+  );
 
-    // Save to localStorage for persistence across pages
-    localStorage.setItem('featuredKagawad', JSON.stringify(updatedKagawad));
+  // Save to localStorage - store only metadata
+  const kagawadForStorage = {
+    ...updatedKagawad,
+    photo: updatedKagawad.id // Store ID reference instead of actual image
   };
+  
+  localStorage.setItem('featuredKagawad', JSON.stringify(kagawadForStorage));
+};
 
   const handleAddActivity = (newActivity) => {
     const updatedKagawad = {
@@ -709,20 +750,42 @@ const AdminDashboard = () => {
     localStorage.setItem('featuredKagawad', JSON.stringify(updatedKagawad));
   };
 
-  const handleSelectNewKagawad = (selectedKagawad) => {
-    setFeaturedKagawad(selectedKagawad);
-    
-    // Save to localStorage
-    localStorage.setItem('featuredKagawad', JSON.stringify(selectedKagawad));
+const handleSelectNewKagawad = (selectedKagawad) => {
+  const kagawadForStorage = {
+    ...selectedKagawad,
+
+    photo: selectedKagawad.id 
   };
+  
+  localStorage.setItem('featuredKagawad', JSON.stringify(kagawadForStorage));
+};
 
   // Load featured kagawad from localStorage on component mount
-  useEffect(() => {
-    const savedKagawad = localStorage.getItem('featuredKagawad');
-    if (savedKagawad) {
-      setFeaturedKagawad(JSON.parse(savedKagawad));
+useEffect(() => {
+  const savedKagawad = localStorage.getItem('featuredKagawad');
+  if (savedKagawad) {
+    try {
+      const parsed = JSON.parse(savedKagawad);
+      
+      // Find the full kagawad object from allKagawads using the stored ID
+      const fullKagawad = allKagawads.find(k => k.id === parsed.id);
+      
+      if (fullKagawad) {
+        // Use the full kagawad object which includes the actual image
+        setFeaturedKagawad(fullKagawad);
+      } else {
+        // Fallback to first kagawad
+        setFeaturedKagawad(allKagawads[0]);
+      }
+    } catch (error) {
+      console.error('Error loading featured kagawad:', error);
+      setFeaturedKagawad(allKagawads[0]);
     }
-  }, []);
+  } else {
+    // Set default featured kagawad
+    setFeaturedKagawad(allKagawads[0]);
+  }
+}, []);
 
   return (
     <div className="min-h-screen bg-background">

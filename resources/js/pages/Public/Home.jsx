@@ -25,95 +25,140 @@ import barangayHall from "@/assets/barangayHall.jpg";
 
 const API_URL = 'http://localhost:8000/api';
 
-// KagawadOfTheDay Component for Public View
-const KagawadOfTheDay = ({ kagawad }) => (
-  <Card className="mb-12 overflow-hidden">
-    <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-      <div className="flex items-center gap-3">
-        <Users className="h-6 w-6 text-primary" />
-        <div>
-          <CardTitle className="text-2xl">Kagawad of the Day</CardTitle>
-          <CardDescription>Meet your dedicated public servant for today</CardDescription>
-        </div>
-      </div>
-    </CardHeader>
-    <CardContent className="p-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Photo Section */}
-        <div className="md:col-span-1">
-          <div className="aspect-square rounded-lg overflow-hidden bg-muted">
-            {kagawad.image ? (
-              <img 
-                src={`${API_URL.replace('/api', '')}/storage/${kagawad.image}`} 
-                alt={kagawad.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(kagawad.name)}&size=200&background=random`;
-                }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-primary/10">
-                <Users className="h-16 w-16 text-primary/50" />
-              </div>
-            )}
-          </div>
-          <div className="mt-3 text-center">
-            <Badge variant="outline" className="bg-primary/5">
-              <CalendarDays className="h-3 w-3 mr-1" />
-              Featured Today
-            </Badge>
-          </div>
-        </div>
+import sk1_cj from "@/assets/sk1_cj.jpg";
+import sk2_melody from "@/assets/sk2_melody.jpg";
+import sk3_moana from "@/assets/sk3_moana.jpg";
+import sk4_dollar from "@/assets/sk4_dollar.jpg";
+import sk5_paul from "@/assets/sk5_paul.jpg";
+import sk6_danilo from "@/assets/sk6_danilo.jpg";
+import sk7_rie from "@/assets/sk7_rie.jpg";
+import sk8_jemimah from "@/assets/sk8_jemimah.jpg";
 
-        {/* Info Section */}
-        <div className="md:col-span-2">
-          <h3 className="text-2xl font-bold mb-1">{kagawad.name}</h3>
-          <p className="text-primary font-medium mb-3">{kagawad.position}</p>
-          <p className="text-muted-foreground mb-4">{kagawad.bio}</p>
-          
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span>{kagawad.contact || 'Not available'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span>{kagawad.email || 'Not available'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{kagawad.address || 'Barangay Tumana, Marikina City'}</span>
-            </div>
+const kagawadImages = {
+  '1': sk1_cj,
+  '2': sk2_melody,
+  '3': sk3_moana,
+  '4': sk4_dollar,
+  '5': sk5_paul,
+  '6': sk6_danilo,
+  '7': sk7_rie,
+  '8': sk8_jemimah,
+};
+
+const KagawadOfTheDay = ({ kagawad }) => {
+  // Helper function to get the correct image source
+  const getImageSource = () => {
+    if (!kagawad) return null;
+    
+    if (kagawad.image && typeof kagawad.image === 'object' && kagawad.image.src) {
+      return kagawad.image.src;
+    }
+
+    if (typeof kagawad.image === 'string') {
+      if (kagawad.image.includes('/storage/')) {
+        return `${API_URL.replace('/api', '')}${kagawad.image}`;
+      }
+      if (kagawad.image.startsWith('data:') || kagawad.image.startsWith('http')) {
+        return kagawad.image;
+      }
+      return kagawad.image;
+    }
+
+    if (kagawad.id && kagawadImages[kagawad.id]) {
+      return kagawadImages[kagawad.id];
+    }
+    
+    return null;
+  };
+
+  return (
+    <Card className="mb-12 overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
+        <div className="flex items-center gap-3">
+          <Users className="h-6 w-6 text-primary" />
+          <div>
+            <CardTitle className="text-2xl">Kagawad of the Day</CardTitle>
+            <CardDescription>Meet your dedicated public servant for today</CardDescription>
           </div>
         </div>
-
-        {/* Recent Activities */}
-        <div className="md:col-span-1">
-          <h4 className="font-semibold mb-3 flex items-center gap-2">
-            <Award className="h-4 w-4 text-primary" />
-            Recent Activities
-          </h4>
-          <div className="space-y-3">
-            {kagawad.recentActivities?.length > 0 ? (
-              kagawad.recentActivities.map((activity, index) => (
-                <div key={index} className="border-l-2 border-primary pl-3 py-1">
-                  <p className="text-sm font-medium">{activity.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(activity.date).toLocaleDateString()}
-                  </p>
-                  <p className="text-xs mt-1 line-clamp-2">{activity.description}</p>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Photo Section */}
+          <div className="md:col-span-1">
+            <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+              {getImageSource() ? (
+                <img 
+                  src={getImageSource()} 
+                  alt={kagawad.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(kagawad.name)}&size=200&background=random`;
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                  <Users className="h-16 w-16 text-primary/50" />
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No recent activities</p>
-            )}
+              )}
+            </div>
+            <div className="mt-3 text-center">
+              <Badge variant="outline" className="bg-primary/5">
+                <CalendarDays className="h-3 w-3 mr-1" />
+                Featured Today
+              </Badge>
+            </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <h3 className="text-2xl font-bold mb-1">{kagawad.name}</h3>
+            <p className="text-primary font-medium mb-3">{kagawad.position}</p>
+            <p className="text-muted-foreground mb-4">{kagawad.bio}</p>
+            
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span>{kagawad.contact || 'Not available'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span>{kagawad.email || 'Not available'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span>{kagawad.address || 'Barangay Tumana, Marikina City'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Activities */}
+          <div className="md:col-span-1">
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <Award className="h-4 w-4 text-primary" />
+              Recent Activities
+            </h4>
+            <div className="space-y-3">
+              {kagawad.recentActivities?.length > 0 ? (
+                kagawad.recentActivities.map((activity, index) => (
+                  <div key={index} className="border-l-2 border-primary pl-3 py-1">
+                    <p className="text-sm font-medium">{activity.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(activity.date).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs mt-1 line-clamp-2">{activity.description}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No recent activities</p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </CardContent>
-  </Card>
-);
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function PublicHome() {
   const [featuredKagawad, setFeaturedKagawad] = useState(null);
@@ -128,71 +173,146 @@ export default function PublicHome() {
   const [loading, setLoading] = useState(true);
 
   // Fetch all data
-  useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch featured kagawad from localStorage
-        const savedKagawad = localStorage.getItem('featuredKagawad');
-        if (savedKagawad) {
-          setFeaturedKagawad(JSON.parse(savedKagawad));
-        } else {
-          // Fallback featured kagawad
-          setFeaturedKagawad({
-            id: '1',
-            name: 'Maria Santos',
-            position: 'SK Chairman',
-            image: null,
-            bio: 'Dedicated to serving the youth of our barangay with passion and commitment.',
-            contact: '+63 912 345 6789',
-            email: 'maria.santos@skbarangay.gov.ph',
-            address: 'Barangay Tumana, Marikina City',
-            recentActivities: []
-          });
-        }
+useEffect(() => {
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch featured kagawad from localStorage
+      const savedKagawad = localStorage.getItem('featuredKagawad');
+      if (savedKagawad) {
+        const parsedKagawad = JSON.parse(savedKagawad);
+        const fullKagawad = {
+          ...parsedKagawad,
+          image: parsedKagawad.id && kagawadImages[parsedKagawad.id] 
+            ? kagawadImages[parsedKagawad.id] 
+            : parsedKagawad.image || null
+        };
+        setFeaturedKagawad(fullKagawad);
+      } else {
+        setFeaturedKagawad({
+          id: '1',
+          name: 'CJ Ancheta',
+          position: 'SK Chairman',
+          image: sk1_cj,
+          bio: 'Dedicated to serving the youth of our barangay with passion and commitment.',
+          contact: '+63 912 345 6789',
+          email: 'cj.ancheta@skbarangay.gov.ph',
+          address: 'Barangay Tumana, Marikina City',
+          recentActivities: []
+        });
+      }
 
-        // Fetch announcements
+      // Fetch announcements
+      try {
         const announcementsResponse = await fetch(`${API_URL}/announcements`);
         if (announcementsResponse.ok) {
           const announcementsData = await announcementsResponse.json();
-          // Get latest 3 announcements
           setAnnouncements(announcementsData.slice(0, 3));
         }
-
-        // Fetch accomplishments
-        const accomplishmentsResponse = await fetch(`${API_URL}/accomplishments`);
-        if (accomplishmentsResponse.ok) {
-          const accomplishmentsData = await accomplishmentsResponse.json();
-          // Get latest 3 accomplishments
-          setAccomplishments(accomplishmentsData.slice(0, 3));
-        }
-
-        // Fetch stats from various endpoints
-        const projectsResponse = await fetch(`${API_URL}/projects`);
-        const requestsResponse = await fetch(`${API_URL}/admin/requests`);
-        const accomplishmentsCountResponse = await fetch(`${API_URL}/accomplishments`);
-
-        const projectsData = projectsResponse.ok ? await projectsResponse.json() : [];
-        const requestsData = requestsResponse.ok ? await requestsResponse.json() : [];
-        const accomplishmentsData = accomplishmentsCountResponse.ok ? await accomplishmentsCountResponse.json() : [];
-
-        setStats({
-          activeProjects: projectsData.length || 23,
-          completedRequests: requestsData.length || 890,
-          accomplishments: accomplishmentsData.length || 15,
-          reports: "Monthly"
-        });
-
       } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error fetching announcements:', error);
       }
-    };
 
-    fetchAllData();
-  }, []);
+      // Fetch accomplishments and projects in parallel
+      const [accomplishmentsRes, projectsRes, statsRes] = await Promise.allSettled([
+        fetch(`${API_URL}/accomplishments`),
+        fetch(`${API_URL}/projects`),
+        fetch(`${API_URL}/public/stats`) // Your new public endpoint
+      ]);
+
+      // Handle accomplishments
+      if (accomplishmentsRes.status === 'fulfilled' && accomplishmentsRes.value.ok) {
+        const accomplishmentsData = await accomplishmentsRes.value.json();
+        setAccomplishments(accomplishmentsData.slice(0, 3));
+        setStats(prev => ({ ...prev, accomplishments: accomplishmentsData.length || 0 }));
+      }
+
+      // Handle projects
+      if (projectsRes.status === 'fulfilled' && projectsRes.value.ok) {
+        const projectsData = await projectsRes.value.json();
+        setStats(prev => ({ ...prev, activeProjects: Array.isArray(projectsData) ? projectsData.length : 0 }));
+      }
+
+// Replace the entire request statistics fetching section with this:
+
+// Fetch request statistics from public endpoint
+try {
+  // Use your new public endpoint instead of the admin endpoint
+  const statsResponse = await fetch(`${API_URL}/public/stats`);
+  
+  if (statsResponse.ok) {
+    const statsData = await statsResponse.json();
+    console.log('Public stats response:', statsData); // Debug log
+    
+    // Update stats based on your API response structure
+    setStats(prev => ({
+      ...prev,
+      completedRequests: statsData.completed_requests || 0,
+      activeProjects: statsData.active_projects || prev.activeProjects,
+      accomplishments: statsData.accomplishments || prev.accomplishments
+    }));
+  } else {
+    console.error('Failed to fetch public stats:', statsResponse.status);
+    // Fallback to manual counting if needed
+    await fetchRequestsManually();
+  }
+} catch (error) {
+  console.error('Error fetching public stats:', error);
+  // Fallback to manual counting
+  await fetchRequestsManually();
+}
+
+// Helper function for manual counting as fallback
+async function fetchRequestsManually() {
+  try {
+    const token = localStorage.getItem('authToken');
+    const requestsResponse = await fetch(`${API_URL}/admin/requests`, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      }
+    });
+    
+    if (requestsResponse.ok) {
+      const responseData = await requestsResponse.json();
+      
+      // Extract requests array
+      let requestsArray = [];
+      if (Array.isArray(responseData)) {
+        requestsArray = responseData;
+      } else if (responseData.data && Array.isArray(responseData.data)) {
+        requestsArray = responseData.data;
+      } else if (responseData.requests && Array.isArray(responseData.requests)) {
+        requestsArray = responseData.requests;
+      }
+      
+      // Count completed requests
+      const completedCount = requestsArray.filter(req => 
+        req.status?.toLowerCase() === 'completed' || 
+        req.status?.toLowerCase() === 'approved'
+      ).length;
+      
+      setStats(prev => ({
+        ...prev,
+        completedRequests: completedCount
+      }));
+    }
+  } catch (error) {
+    console.error('Error in manual fetch:', error);
+  }
+}
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchAllData();
+}, []);
 
   const services = [
     { title: "Document Requests", description: "Submit and track document requests", icon: <FileText className="h-6 w-6" />, link: "/services" },

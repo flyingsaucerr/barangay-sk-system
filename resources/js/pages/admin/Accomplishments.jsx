@@ -13,6 +13,7 @@ const AdminAccomplishments = () => {
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [expandedCards, setExpandedCards] = useState({});
 
   // Form state
   const [formData, setFormData] = useState({
@@ -34,6 +35,13 @@ const AdminAccomplishments = () => {
   const getCsrfToken = () => {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   };
+
+  const toggleReadMore = (id) => {
+  setExpandedCards(prev => ({
+    ...prev,
+    [id]: !prev[id]
+  }));
+};
 
   // Fetch accomplishments from API
   const fetchAccomplishments = async () => {
@@ -638,18 +646,30 @@ const AdminAccomplishments = () => {
                   </CardHeader>
 
                   <CardContent className="space-y-4">
-                    <p className="text-gray-600 leading-relaxed line-clamp-3">
-                      {accomplishment.description || "No description available."}
-                    </p>
+                        <div>
+                          <p className={`text-gray-600 leading-relaxed ${!expandedCards[accomplishment.id] ? 'line-clamp-3' : ''}`}>
+                            {accomplishment.description || "No description available."}
+                          </p>
+                          
+                          {/* Read More button - only show if description exists and is longer than 150 chars (adjust as needed) */}
+                          {accomplishment.description && accomplishment.description.length > 150 && (
+                            <button
+                              onClick={() => toggleReadMore(accomplishment.id)}
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium mt-2 focus:outline-none transition-colors"
+                            >
+                              {expandedCards[accomplishment.id] ? 'Show less' : 'Read more'}
+                            </button>
+                          )}
+                        </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Calendar className="h-4 w-4" />
-                        <span className="font-medium">{formatDate(accomplishment.date_completed)}</span>
-                      </div>
-                    </div>
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <Calendar className="h-4 w-4" />
+                            <span className="font-medium">{formatDate(accomplishment.date_completed)}</span>
+                          </div>
+                        </div>
 
-                    {/* Admin Actions - Removed publish/unpublish toggle */}
+                    {/* Admin Actions */}
                     <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
                       <Button
                         onClick={() => handleEdit(accomplishment)}
