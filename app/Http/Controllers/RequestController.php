@@ -114,9 +114,31 @@ class RequestController extends Controller
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhere('contact_name', 'like', "%{$search}%");
+                      ->orWhere('description', 'like', "%{$search}%")
+                      ->orWhere('contact_name', 'like', "%{$search}%");
                 });
+            }
+
+            // Date range filter
+            if ($request->has('start_date') && $request->has('end_date') && $request->start_date && $request->end_date) {
+                $startDate = $request->start_date . ' 00:00:00';
+                $endDate = $request->end_date . ' 23:59:59';
+                
+                $query->whereBetween('created_at', [$startDate, $endDate]);
+                
+                \Log::info('Date filter applied', [
+                    'start_date' => $startDate,
+                    'end_date' => $endDate
+                ]);
+            }
+
+            // Assignment filter for admin
+            if ($user->role === 'admin' && $request->has('assigned') && $request->assigned !== 'all') {
+                if ($request->assigned === 'assigned') {
+                    $query->whereNotNull('assigned_to');
+                } elseif ($request->assigned === 'unassigned') {
+                    $query->whereNull('assigned_to');
+                }
             }
 
             $requests = $query->orderBy('created_at', 'desc')->get();
@@ -124,7 +146,8 @@ class RequestController extends Controller
             \Log::info('Returning requests', [
                 'count' => $requests->count(),
                 'user_role' => $user->role,
-                'user_id' => $user->id
+                'user_id' => $user->id,
+                'total_in_db' => Request::count()
             ]);
 
             return response()->json([
@@ -136,9 +159,11 @@ class RequestController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Error in adminIndex: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve requests'
+                'message' => 'Failed to retrieve requests: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -146,7 +171,7 @@ class RequestController extends Controller
     /**
      * Get request statistics for admin (Protected)
      */
-    public function adminStatistics(): JsonResponse
+    public function adminStatistics(HttpRequest $request): JsonResponse
     {
         try {
             $user = auth()->user();
@@ -165,10 +190,19 @@ class RequestController extends Controller
                 ], 403);
             }
 
+            // Apply date filters to statistics if provided
+            if ($request->has('start_date') && $request->has('end_date') && $request->start_date && $request->end_date) {
+                $startDate = $request->start_date . ' 00:00:00';
+                $endDate = $request->end_date . ' 23:59:59';
+                
+                $baseQuery->whereBetween('created_at', [$startDate, $endDate]);
+            }
+
             $totalRequests = $baseQuery->count();
             $pendingRequests = (clone $baseQuery)->where('status', 'pending')->count();
             $inProgressRequests = (clone $baseQuery)->where('status', 'in_progress')->count();
             $completedRequests = (clone $baseQuery)->where('status', 'completed')->count();
+            $rejectedRequests = (clone $baseQuery)->where('status', 'rejected')->count();
 
             $requestsByType = [
                 'solicitation' => (clone $baseQuery)->where('request_type', 'solicitation')->count(),
@@ -183,6 +217,7 @@ class RequestController extends Controller
                     'pending_requests' => $pendingRequests,
                     'in_progress_requests' => $inProgressRequests,
                     'completed_requests' => $completedRequests,
+                    'rejected_requests' => $rejectedRequests,
                     'requests_by_type' => $requestsByType,
                     'user_role' => $user->role
                 ]
@@ -190,6 +225,8 @@ class RequestController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error fetching request statistics: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve statistics'
@@ -237,9 +274,6 @@ class RequestController extends Controller
             // Only update fields that are provided
             if ($request->has('status')) {
                 $updateData['status'] = $request->status;
-            } else {
-                // If status not provided, use existing status
-                $updateData['status'] = $requestModel->status;
             }
             
             if ($request->has('notes')) {
@@ -255,28 +289,30 @@ class RequestController extends Controller
             // Reload with relationships
             $requestModel->load('assignedUser:id,name');
 
-        Log::info('Request updated', [
-            'id' => $requestModel->id,
-            'status' => $requestModel->status,
-            'assigned_to' => $requestModel->assigned_to,
-            'notes' => $requestModel->notes,
-            'updated_fields' => array_keys($updateData)
-        ]);
+            Log::info('Request updated', [
+                'id' => $requestModel->id,
+                'status' => $requestModel->status,
+                'assigned_to' => $requestModel->assigned_to,
+                'notes' => $requestModel->notes,
+                'updated_fields' => array_keys($updateData)
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'data' => $requestModel,
-            'message' => 'Request updated successfully'
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $requestModel,
+                'message' => 'Request updated successfully'
+            ]);
 
-    } catch (\Exception $e) {
-        Log::error('Error updating request: ' . $e->getMessage());
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to update request'
-        ], 500);
+        } catch (\Exception $e) {
+            Log::error('Error updating request: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update request'
+            ], 500);
+        }
     }
-}
 
     /**
      * Get single request details for admin (Protected)
@@ -340,46 +376,46 @@ class RequestController extends Controller
         }
     }
 
-/**
- * Get all staff users for assignment (Protected - Admin only)
- */
-public function getStaffUsers(): JsonResponse
-{
-    try {
-        $user = auth()->user();
-        
-        // Only admins can access this endpoint
-        if ($user->role !== 'admin') {
+    /**
+     * Get all staff users for assignment (Protected - Admin only)
+     */
+    public function getStaffUsers(): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            
+            // Only admins can access this endpoint
+            if ($user->role !== 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access'
+                ], 403);
+            }
+            
+            // Get only staff users (exclude admins)
+            $staffUsers = \App\Models\User::where('role', 'staff')
+                ->select('id', 'name', 'username', 'role', 'contact_number')
+                ->orderBy('name')
+                ->get();
+
+            Log::info('Staff users fetched', [
+                'count' => $staffUsers->count(),
+                'requested_by' => $user->id,
+                'role' => $user->role
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $staffUsers,
+                'count' => $staffUsers->count()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching staff users: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized access'
-            ], 403);
+                'message' => 'Failed to retrieve staff users'
+            ], 500);
         }
-        
-        // Get only staff users (exclude admins)
-        $staffUsers = \App\Models\User::where('role', 'staff')
-            ->select('id', 'name', 'username', 'role', 'contact_number')
-            ->orderBy('name')
-            ->get();
-
-        Log::info('Staff users fetched', [
-            'count' => $staffUsers->count(),
-            'requested_by' => $user->id,
-            'role' => $user->role
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data' => $staffUsers,
-            'count' => $staffUsers->count()
-        ]);
-
-    } catch (\Exception $e) {
-        Log::error('Error fetching staff users: ' . $e->getMessage());
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to retrieve staff users'
-        ], 500);
     }
-}
 }

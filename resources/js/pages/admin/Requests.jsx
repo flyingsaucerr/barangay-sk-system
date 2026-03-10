@@ -27,7 +27,9 @@ import {
   AlertTriangle,
   Filter,
   UserCheck,
-  UserX
+  UserX,
+  Trash2,
+  CalendarRange
 } from "lucide-react";
 
 const API = {
@@ -37,6 +39,7 @@ const API = {
   GET_REQUEST: (id) => `/api/admin/requests/${id}`,
   GET_STAFF: '/api/admin/staff',
   GET_CURRENT_USER: '/api/user',
+  DELETE_REQUEST: (id) => `/api/admin/requests/${id}`,
 };
 
 const AdminRequests = () => {
@@ -48,7 +51,7 @@ const AdminRequests = () => {
   const [requests, setRequests] = useState([]);
   const [staffUsers, setStaffUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null); // Store user role separately
+  const [userRole, setUserRole] = useState(null);
   const [statistics, setStatistics] = useState({
     total_requests: 0,
     pending_requests: 0,
@@ -67,7 +70,17 @@ const AdminRequests = () => {
   const [staffLoading, setStaffLoading] = useState(false);
   const [userLoading, setUserLoading] = useState(false);
   const [userError, setUserError] = useState(null);
-  const [assignmentFilter, setAssignmentFilter] = useState("all"); // New filter: all, assigned, unassigned
+  const [assignmentFilter, setAssignmentFilter] = useState("all");
+  
+  // New state for date filters
+  const [dateFilterType, setDateFilterType] = useState("all"); // all, today, week, month, custom
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  // New state for delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const getToken = () => {
     return localStorage.getItem('authToken');
@@ -153,6 +166,11 @@ const AdminRequests = () => {
     return isAdmin() || isStaff();
   };
 
+  // Check if user can delete (admin only)
+  const canDelete = () => {
+    return isAdmin();
+  };
+
   // Check if user can see admin notes
   const canSeeAdminNotes = () => {
     return isAdmin() || isStaff();
@@ -202,62 +220,148 @@ const AdminRequests = () => {
     }
   };
 
-  // Fetch all requests
-  const fetchRequests = async (showRefresh = false) => {
-    if (showRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
+  // Helper function to get date range based on filter type
+  const getDateRangeParams = () => {
+    const params = new URLSearchParams();
+    
+    if (dateFilterType === 'today') {
+      const today = new Date().toISOString().split('T')[0];
+      params.append('start_date', today);
+      params.append('end_date', today);
+    } else if (dateFilterType === 'week') {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - 7);
+      params.append('start_date', start.toISOString().split('T')[0]);
+      params.append('end_date', end.toISOString().split('T')[0]);
+    } else if (dateFilterType === 'month') {
+      const end = new Date();
+      const start = new Date();
+      start.setMonth(start.getMonth() - 1);
+      params.append('start_date', start.toISOString().split('T')[0]);
+      params.append('end_date', end.toISOString().split('T')[0]);
+    } else if (dateFilterType === 'custom' && startDate && endDate) {
+      params.append('start_date', startDate);
+      params.append('end_date', endDate);
     }
     
-    try {
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (typeFilter !== 'all') params.append('type', typeFilter);
-      if (assignmentFilter !== 'all') params.append('assigned', assignmentFilter);
-
-      const query = params.toString() ? `?${params.toString()}` : '';
-      const url = `${API.REQUESTS}${query}`;
-      
-      const headers = getAuthHeaders();
-      const response = await fetch(url, { headers });
-
-      if (response.status === 401) {
-        console.warn('Authentication required');
-        setRequests([]);
-        return;
-      }
-
-      if (!response.ok) {
-        console.error('HTTP error:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        setRequests([]);
-        return;
-      }
-
-      const data = await response.json();
-      console.log('Requests data:', data);
-
-      if (data && data.success) {
-        setRequests(data.data || []);
-        // Update user role from response if available
-        if (data.user_role && !userRole) {
-          setUserRole(data.user_role);
-        }
-      } else {
-        console.warn('API response not successful');
-        setRequests([]);
-      }
-    } catch (error) {
-      console.error('Error fetching requests:', error);
-      setRequests([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    return params;
   };
+
+  // Fetch all requests
+const fetchRequests = async (showRefresh = false) => {
+  if (showRefresh) {
+    setRefreshing(true);
+  } else {
+    setLoading(true);
+  }
+  
+  try {
+    const params = new URLSearchParams();
+    
+    // Add search term
+    if (searchTerm) params.append('search', searchTerm);
+    
+    // Add status filter
+    if (statusFilter !== 'all') params.append('status', statusFilter);
+    
+    // Add type filter
+    if (typeFilter !== 'all') params.append('type', typeFilter);
+    
+    // Add assignment filter
+    if (assignmentFilter !== 'all') params.append('assigned', assignmentFilter);
+    
+    // Add date filters with proper formatting
+    if (dateFilterType !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let start = null;
+      let end = null;
+      
+      switch (dateFilterType) {
+        case 'today':
+          start = today.toISOString().split('T')[0];
+          end = today.toISOString().split('T')[0];
+          break;
+          
+        case 'week':
+          end = today.toISOString().split('T')[0];
+          start = new Date(today);
+          start.setDate(start.getDate() - 7);
+          start = start.toISOString().split('T')[0];
+          break;
+          
+        case 'month':
+          end = today.toISOString().split('T')[0];
+          start = new Date(today);
+          start.setMonth(start.getMonth() - 1);
+          start = start.toISOString().split('T')[0];
+          break;
+          
+        case 'custom':
+          if (startDate && endDate) {
+            start = startDate;
+            end = endDate;
+          }
+          break;
+      }
+      
+      if (start && end) {
+        params.append('start_date', start);
+        params.append('end_date', end);
+        
+        // Also log for debugging
+        console.log('Date filter applied:', { start, end, type: dateFilterType });
+      }
+    }
+
+    const query = params.toString();
+    const url = query ? `${API.REQUESTS}?${query}` : API.REQUESTS;
+    
+    console.log('Fetching requests with URL:', url);
+    
+    const headers = getAuthHeaders();
+    const response = await fetch(url, { headers });
+
+    if (response.status === 401) {
+      console.warn('Authentication required');
+      setRequests([]);
+      return;
+    }
+
+    if (!response.ok) {
+      console.error('HTTP error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      setRequests([]);
+      return;
+    }
+
+    const data = await response.json();
+    console.log('Requests data received:', data);
+
+    if (data && data.success) {
+      setRequests(data.data || []);
+      // Update user role from response if available
+      if (data.user_role && !userRole) {
+        setUserRole(data.user_role);
+      }
+      
+      // Log the count of requests returned
+      console.log(`Received ${data.data?.length || 0} requests with filters`);
+    } else {
+      console.warn('API response not successful');
+      setRequests([]);
+    }
+  } catch (error) {
+    console.error('Error fetching requests:', error);
+    setRequests([]);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   // Fetch single request details
   const fetchRequestDetails = async (id) => {
@@ -314,6 +418,60 @@ const AdminRequests = () => {
       }
     } catch (error) {
       console.error('Error fetching statistics:', error);
+    }
+  };
+
+  // Delete request (admin only)
+  const deleteRequest = async (id) => {
+    if (!isAdmin()) {
+      alert('Only admins can delete requests');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this request? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      console.log('Deleting request:', id);
+      
+      const response = await fetch(API.DELETE_REQUEST(id), {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      console.log('Delete response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Delete failed with response:', errorData);
+        throw new Error(`Failed to delete request: ${response.status} ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
+      console.log('Delete success data:', data);
+      
+      if (data.success) {
+        // Refresh the list
+        fetchRequests();
+        fetchStatistics();
+        
+        // Close details modal if the deleted request was open
+        if (selectedRequest && selectedRequest.id === id) {
+          handleCloseDetails();
+        }
+        
+        alert('Request deleted successfully');
+      } else {
+        alert(data.message || 'Failed to delete request');
+      }
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      alert(`Failed to delete request: ${error.message}`);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(null);
     }
   };
 
@@ -435,6 +593,49 @@ const AdminRequests = () => {
     fetchStatistics();
   };
 
+  // Handle date filter change
+const handleDateFilterChange = (value) => {
+  setDateFilterType(value);
+  
+  if (value === 'custom') {
+    setShowDatePicker(true);
+  } else {
+    setShowDatePicker(false);
+    if (value !== 'custom') {
+      setStartDate('');
+      setEndDate('');
+    }
+  }
+};
+
+const applyCustomDateRange = () => {
+  if (!startDate || !endDate) {
+    toast.error('Please select both start and end dates');
+    return;
+  }
+  
+  // Validate date range
+  if (new Date(startDate) > new Date(endDate)) {
+    toast.error('Start date cannot be after end date');
+    return;
+  }
+  
+  setShowDatePicker(false);
+  // Fetch will be triggered by useEffect when startDate/endDate change
+  toast.success(`Filtering requests from ${startDate} to ${endDate}`);
+};
+
+  const clearFilters = () => {
+  setSearchTerm("");
+  setStatusFilter("all");
+  setTypeFilter("all");
+  setAssignmentFilter("all");
+  setDateFilterType("all");
+  setStartDate("");
+  setEndDate("");
+  setShowDatePicker(false);
+  toast.success('All filters cleared');
+};
   // Initialize
   useEffect(() => {
     const initialize = async () => {
@@ -449,13 +650,18 @@ const AdminRequests = () => {
     initialize();
   }, []);
 
-  // Load data when filters change
-  useEffect(() => {
-    if (isLikelyLoggedIn()) {
+
+useEffect(() => {
+  if (isLikelyLoggedIn()) {
+    const timeoutId = setTimeout(() => {
       fetchRequests();
       fetchStatistics();
-    }
-  }, [searchTerm, statusFilter, typeFilter, assignmentFilter]);
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }
+}, [searchTerm, statusFilter, typeFilter, assignmentFilter, dateFilterType, startDate, endDate]);
+
 
   // Debug user state
   useEffect(() => {
@@ -464,6 +670,7 @@ const AdminRequests = () => {
       isAdmin: isAdmin(),
       isStaff: isStaff(),
       canEdit: canEdit(),
+      canDelete: canDelete(),
       canSeeAdminNotes: canSeeAdminNotes(),
       canAssignRequests: canAssignRequests()
     });
@@ -607,24 +814,34 @@ const AdminRequests = () => {
           )}
         </div>
         
-        <Button 
-          onClick={handleRefresh}
-          variant="outline"
-          disabled={refreshing || loading}
-          className="flex items-center gap-2"
-        >
-          {refreshing || loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          {refreshing || loading ? 'Refreshing...' : 'Refresh'}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={clearFilters}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            Clear Filters
+          </Button>
+          <Button 
+            onClick={handleRefresh}
+            variant="outline"
+            disabled={refreshing || loading}
+            className="flex items-center gap-2"
+          >
+            {refreshing || loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {refreshing || loading ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col md:flex-row gap-4 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
             placeholder={
@@ -663,6 +880,40 @@ const AdminRequests = () => {
           </SelectContent>
         </Select>
 
+        {/* Date Filter */}
+        <Select value={dateFilterType} onValueChange={handleDateFilterChange}>
+          <SelectTrigger className="w-full md:w-40">
+            <SelectValue placeholder="Date Range" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Time</SelectItem>
+            <SelectItem value="today">Today</SelectItem>
+            <SelectItem value="week">Last 7 Days</SelectItem>
+            <SelectItem value="month">Last 30 Days</SelectItem>
+            <SelectItem value="custom">Custom Range</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Custom Date Picker */}
+        {showDatePicker && (
+          <div className="flex items-center gap-2 bg-white p-2 rounded-lg border shadow-sm">
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-auto"
+            />
+            <span>to</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-auto"
+            />
+            <Button size="sm" onClick={applyCustomDateRange}>Apply</Button>
+          </div>
+        )}
+
         {/* Assignment filter (admin only) */}
         {isAdmin() && (
           <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
@@ -677,6 +928,28 @@ const AdminRequests = () => {
           </Select>
         )}
       </div>
+
+      {/* Active Filters Display */}
+      {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all' || dateFilterType !== 'all' || assignmentFilter !== 'all') && (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Filter className="h-4 w-4" />
+          <span>Active filters:</span>
+          {searchTerm && <Badge variant="secondary">Search: {searchTerm}</Badge>}
+          {statusFilter !== 'all' && <Badge variant="secondary">Status: {statusFilter}</Badge>}
+          {typeFilter !== 'all' && <Badge variant="secondary">Type: {typeFilter}</Badge>}
+          {dateFilterType !== 'all' && (
+            <Badge variant="secondary">
+              Date: {
+                dateFilterType === 'today' ? 'Today' :
+                dateFilterType === 'week' ? 'Last 7 days' :
+                dateFilterType === 'month' ? 'Last 30 days' :
+                'Custom'
+              }
+            </Badge>
+          )}
+          {assignmentFilter !== 'all' && <Badge variant="secondary">Assignment: {assignmentFilter}</Badge>}
+        </div>
+      )}
 
       {/* Statistics with role-based info */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -725,6 +998,20 @@ const AdminRequests = () => {
               <p className="text-sm text-blue-700">
                 <strong>Staff View:</strong> You can only see requests assigned to you. 
                 You can view admin notes but only admins can edit them.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin info banner */}
+      {isAdmin() && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Shield className="h-5 w-5 text-red-600" />
+            <div>
+              <p className="text-sm text-red-700">
+                <strong>Admin View:</strong> You have full access to manage all requests, including assignment and deletion.
               </p>
             </div>
           </CardContent>
@@ -833,15 +1120,32 @@ const AdminRequests = () => {
                         </span>
                       )}
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleViewDetails(request)}
-                      disabled={updating === request.id || !isLikelyLoggedIn()}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View Details
-                    </Button>
+                    <div className="flex gap-2">
+                      {isAdmin() && (
+                        <Button 
+                          variant="destructive" 
+                          size="sm" 
+                          onClick={() => deleteRequest(request.id)}
+                          disabled={deleting || updating === request.id}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          {deleting && updating === request.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleViewDetails(request)}
+                        disabled={updating === request.id || !isLikelyLoggedIn()}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -855,7 +1159,7 @@ const AdminRequests = () => {
           <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">No requests found</h3>
           <p className="text-muted-foreground">
-            {searchTerm || statusFilter !== "all" || typeFilter !== "all" || assignmentFilter !== "all"
+            {searchTerm || statusFilter !== "all" || typeFilter !== "all" || dateFilterType !== "all" || assignmentFilter !== "all"
               ? "Try adjusting your search or filters"
               : isStaff() 
                 ? "No requests have been assigned to you yet"
@@ -888,7 +1192,7 @@ const AdminRequests = () => {
                     </h2>
                     <p className="text-sm text-gray-500">
                       Request ID: {selectedRequest.id}
-                      {isStaff() && (
+                      {isStaff() && selectedRequest.assigned_to === currentUser?.id && (
                         <span className="ml-2 text-blue-600">
                           <UserCheck className="h-3 w-3 inline mr-1" />
                           Assigned to you
@@ -897,13 +1201,31 @@ const AdminRequests = () => {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={handleCloseDetails}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  disabled={detailLoading || updating === selectedRequest.id}
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isAdmin() && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteRequest(selectedRequest.id)}
+                      disabled={deleting || updating === selectedRequest.id}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {deleting && updating === selectedRequest.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 mr-2" />
+                      )}
+                      Delete
+                    </Button>
+                  )}
+                  <button
+                    onClick={handleCloseDetails}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    disabled={detailLoading || updating === selectedRequest.id}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               
               {/* Content */}

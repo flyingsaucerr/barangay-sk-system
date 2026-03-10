@@ -70,6 +70,9 @@ Route::get('/public/stats', function() {
     ]);
 });
 
+
+
+
 // Public APIs (No authentication required)
 Route::middleware('api')->group(function () {
     // Public content

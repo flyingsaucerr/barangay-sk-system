@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,27 @@ const AdminKKID = () => {
     pending: 0,
     rejected: 0
   });
+
+const KKIDCard = ({ profile, side = 'front' }) => {
+  const cardRef = useRef(null);
+  
+  useEffect(() => {
+    if (cardRef.current && profile) {
+      cardRef.current.innerHTML = createFixedIDCardHTML(profile, side);
+    }
+  }, [profile, side]);
+
+  return (
+    <div 
+      ref={cardRef}
+      style={{
+        width: '85.6mm',
+        height: '54mm',
+        margin: '0 auto'
+      }}
+    />
+  );
+};
 
   const generateKKIDNumber = () => {
     const now = new Date();
@@ -519,170 +541,310 @@ const AdminKKID = () => {
     }
   };
 
-  // Create fixed HTML for ID cards (for printing/downloading)
-const createFixedIDCardHTML = (side = 'front') => {
-  if (!selectedIDProfile) return '';
+// Add this helper function at the beginning of your component (after the state declarations)
+
+const getAbsoluteImageUrl = (url) => {
+  if (!url) return '';
   
-  const profile = selectedIDProfile;
+  // If it's already a data URL or full URL, use as is
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // If it's a relative path from storage
+  if (url.startsWith('/storage/')) {
+    return `${window.location.origin}${url}`;
+  }
+  
+  // If it's a path without leading slash
+  if (url.startsWith('storage/')) {
+    return `${window.location.origin}/${url}`;
+  }
+  
+  // If it's just a filename, assume it's in storage
+  if (!url.includes('/')) {
+    return `${window.location.origin}/storage/photos/${url}`;
+  }
+  
+  // Default case - try to make it absolute
+  return url.startsWith('/') ? `${window.location.origin}${url}` : url;
+};
+
+// Preload image function
+const preloadImage = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      console.log('Image loaded successfully:', url);
+      resolve(img);
+    };
+    img.onerror = (error) => {
+      console.warn('Failed to load image:', url, error);
+      // Return a placeholder image
+      const placeholder = new Image();
+      placeholder.src = 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+          <rect width="200" height="200" fill="#e0f2fe"/>
+          <circle cx="100" cy="80" r="40" fill="#94a3b8"/>
+          <rect x="60" y="130" width="80" height="40" rx="5" fill="#94a3b8"/>
+          <text x="100" y="180" text-anchor="middle" fill="#475569" font-size="12">No Photo</text>
+        </svg>
+      `);
+      resolve(placeholder);
+    };
+    img.src = getAbsoluteImageUrl(url);
+  });
+};
+
+// Updated createFixedIDCardHTML function that accepts profile as parameter
+const createFixedIDCardHTML = (profile, side = 'front') => {
+  if (!profile) return '';
+  
   const isFront = side === 'front';
   
-  // Helper to get absolute image URL with proper path
-  const getImageUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
-    }
-    if (url.startsWith('/storage/')) {
-      return `${window.location.origin}${url}`;
-    }
-    if (url.startsWith('storage/')) {
-      return `${window.location.origin}/${url}`;
-    }
-    return url.startsWith('/') ? `${window.location.origin}${url}` : url;
-  };
+  // Get absolute image URL
+  let photoUrl = getAbsoluteImageUrl(profile.photo_url || '');
   
-  let photoUrl = getImageUrl(profile.photo_url || '');
-  
-  // Create a base64 placeholder image for fallback
+  // Create placeholder
   const placeholderBase64 = btoa(`
     <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
       <rect width="200" height="200" fill="#e0f2fe"/>
       <circle cx="100" cy="80" r="40" fill="#94a3b8"/>
       <rect x="60" y="130" width="80" height="40" rx="5" fill="#94a3b8"/>
-      <text x="100" y="180" text-anchor="middle" fill="#475569" font-size="12" font-family="Arial">No Photo</text>
+      <text x="100" y="180" text-anchor="middle" fill="#475569" font-size="12">No Photo</text>
     </svg>
   `);
   
   return `
-    <div style="width: 85.6mm; height: 54mm; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border-radius: 4mm; overflow: hidden; position: relative; font-family: Arial, Helvetica, sans-serif; box-sizing: border-box; margin: 0; padding: 0;">
-      <!-- Watermark -->
-      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 20mm; font-weight: 900; color: rgba(255, 255, 255, 0.08); letter-spacing: 2mm; font-family: Arial Black, Arial, sans-serif; white-space: nowrap; z-index: 1; pointer-events: none;">
-        KKID
-      </div>
-      
-      <!-- Header - Fixed height with proper spacing -->
-      <div style="background: rgba(255, 255, 255, 0.95); padding: 1mm 2mm; text-align: center; border-bottom: 0.5mm solid ${isFront ? '#fbbf24' : '#ef4444'}; position: absolute; top: 0; left: 0; right: 0; height: 7mm; z-index: 2; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box;">
-        <div style="font-size: 2.5mm; font-weight: bold; color: ${isFront ? '#1e40af' : '#dc2626'}; font-family: Arial Black, Arial, sans-serif; line-height: 1.2; letter-spacing: 0.05mm; margin: 0;">
-          ${isFront ? 'KATIPUNAN NG KABATAAN' : 'IN CASE OF EMERGENCY'}
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          background: white;
+          font-family: Arial, sans-serif;
+        }
+        .id-card {
+          width: 85.6mm;
+          height: 54mm;
+          background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+          border-radius: 4mm;
+          overflow: hidden;
+          position: relative;
+          font-family: Arial, sans-serif;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .watermark {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-45deg);
+          font-size: 20mm;
+          font-weight: 900;
+          color: rgba(255, 255, 255, 0.08);
+          letter-spacing: 2mm;
+          font-family: Arial Black, sans-serif;
+          white-space: nowrap;
+          z-index: 1;
+          pointer-events: none;
+        }
+        .header {
+          background: rgba(255, 255, 255, 0.95);
+          padding: 1.5mm 2mm;
+          text-align: center;
+          border-bottom: 0.5mm solid ${isFront ? '#fbbf24' : '#ef4444'};
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 6mm;
+          z-index: 2;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        .header-title {
+          font-size: 2.5mm;
+          font-weight: bold;
+          color: ${isFront ? '#1e40af' : '#dc2626'};
+          font-family: Arial Black, sans-serif;
+          line-height: 1.1;
+          letter-spacing: 0.05mm;
+        }
+        .header-subtitle {
+          font-size: 1.8mm;
+          color: #64748b;
+          font-weight: 600;
+          letter-spacing: 0.03mm;
+        }
+        .content {
+          position: absolute;
+          top: 6mm;
+          left: 2mm;
+          right: 2mm;
+          bottom: 2mm;
+          z-index: 2;
+        }
+        .footer {
+          position: absolute;
+          bottom: 0.5mm;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 0.8mm;
+          color: rgba(255,255,255,0.7);
+          font-family: 'Courier New', monospace;
+          z-index: 2;
+        }
+        img {
+          max-width: 100%;
+          height: auto;
+          display: block;
+        }
+        @media print {
+          .id-card {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="id-card">
+        <!-- Watermark -->
+        <div class="watermark">KKID</div>
+        
+        <!-- Header -->
+        <div class="header">
+          <div class="header-title">
+            ${isFront ? 'KATIPUNAN NG KABATAAN' : 'IN CASE OF EMERGENCY'}
+          </div>
+          ${isFront ? '<div class="header-subtitle">OFFICIAL IDENTIFICATION CARD</div>' : ''}
         </div>
-        ${isFront ? '<div style="font-size: 1.8mm; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 0.5mm;">OFFICIAL IDENTIFICATION CARD</div>' : ''}
+        
+        <!-- Content -->
+        <div class="content">
+          ${isFront ? createFrontContentHTML(profile, photoUrl, placeholderBase64) : createBackContentHTML(profile)}
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+          ${isFront ? `ID #${profile.id?.toString().padStart(6, '0') || '000000'}` : 'EMERGENCY CONTACT'}
+        </div>
       </div>
-      
-      <!-- Content - Adjusted positioning to account for header -->
-      <div style="position: absolute; top: 7mm; left: 2mm; right: 2mm; bottom: 2mm; z-index: 2; box-sizing: border-box;">
-        ${isFront ? createFrontContentHTML(profile, photoUrl, placeholderBase64) : createBackContentHTML(profile)}
-      </div>
-      
-      <!-- Footer -->
-      <div style="position: absolute; bottom: 0.5mm; left: 0; right: 0; text-align: center; font-size: 0.8mm; color: rgba(255,255,255,0.7); font-family: 'Courier New', monospace; z-index: 2;">
-        ${isFront ? `ID #${profile.id?.toString().padStart(6, '0') || '000000'}` : 'EMERGENCY CONTACT'}
-      </div>
-    </div>
+    </body>
+    </html>
   `;
 };
 
 const createFrontContentHTML = (profile, photoUrl, placeholderBase64) => {
-  // Format date helper
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric' 
-      }).toUpperCase();
-    } catch {
-      return 'N/A';
-    }
-  };
+  const photoHTML = photoUrl ? 
+    `<img src="${photoUrl}" alt="${profile.full_name}" 
+          style="width: 100%; height: 100%; object-fit: cover; display: block;" 
+          crossorigin="anonymous"
+          onerror="this.onerror=null; this.src='data:image/svg+xml;base64,${placeholderBase64}';" />` :
+    `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);">
+      <svg width="12mm" height="12mm" viewBox="0 0 24 24" fill="#94a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    </div>`;
+
+  // Determine gender color based on value
+  const genderColor = profile.gender?.toLowerCase() === 'female' ? '#dc2626' : '#2563eb';
+  const genderText = profile.gender || 'N/A';
 
   return `
-    <div style="display: flex; gap: 2mm; height: 100%; box-sizing: border-box;">
+    <div style="display: flex; gap: 2mm; height: 100%;">
       <!-- Left Column - Photo & ID Info -->
-      <div style="width: 25.4mm; display: flex; flex-direction: column; gap: 1.5mm; height: 100%; box-sizing: border-box;">
-        <!-- Photo Container - Fixed size -->
-        <div style="width: 100%; height: 25.4mm; background: #ffffff; border-radius: 1mm; overflow: hidden; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.15); border: 0.3mm solid #fbbf24; box-sizing: border-box;">
-          ${photoUrl ? 
-            `<img src="${photoUrl}" alt="${profile.full_name}" 
-                  style="width: 100%; height: 100%; object-fit: cover; display: block;" 
-                  crossorigin="anonymous"
-                  onerror="this.onerror=null; this.src='data:image/svg+xml;base64,${placeholderBase64}';" />` :
-            `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);">
-              <svg width="12mm" height="12mm" viewBox="0 0 24 24" fill="#94a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-            </div>`
-          }
+      <div style="width: 25.4mm; display: flex; flex-direction: column; gap: 1.2mm;">
+        <!-- Photo Container -->
+        <div style="width: 100%; height: 25.4mm; background: #ffffff; border-radius: 1mm; overflow: hidden; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.15); border: 0.3mm solid #fbbf24;">
+          ${photoHTML}
         </div>
 
-        <!-- KKID Number - Fixed height -->
-        <div style="background: #ffffff; padding: 0.8mm; border-radius: 0.5mm; text-align: center; box-shadow: 0 0.2mm 0.5mm rgba(0,0,0,0.1); border: 0.1mm solid #e2e8f0; box-sizing: border-box;">
+        <!-- KKID Number -->
+        <div style="background: #ffffff; padding: 0.8mm; border-radius: 0.5mm; text-align: center; box-shadow: 0 0.2mm 0.5mm rgba(0,0,0,0.1); border: 0.1mm solid #e2e8f0;">
           <div style="font-size: 1.2mm; color: #64748b; font-weight: bold; margin-bottom: 0.3mm;">KKID NO.</div>
-          <div style="font-size: 1.6mm; font-weight: bold; color: #1e40af; font-family: 'Courier New', monospace; letter-spacing: 0.1mm; word-break: break-word;">${profile.kkid_number || 'N/A'}</div>
+          <div style="font-size: 1.6mm; font-weight: bold; color: #1e40af; font-family: 'Courier New', monospace; letter-spacing: 0.1mm;">${profile.kkid_number}</div>
         </div>
 
-        <!-- Validity - Fixed height with auto margin to push to bottom -->
-        <div style="background: #fef3c7; padding: 0.8mm; border-radius: 0.5mm; text-align: center; border: 0.2mm solid #fbbf24; margin-top: auto; box-sizing: border-box;">
+        <!-- Validity -->
+        <div style="background: #fef3c7; padding: 0.8mm; border-radius: 0.5mm; text-align: center; border: 0.2mm solid #fbbf24; margin-top: auto;">
           <div style="font-size: 1.1mm; color: #92400e; font-weight: bold; margin-bottom: 0.3mm;">VALID UNTIL</div>
-          <div style="font-size: 1.5mm; font-weight: bold; color: #b45309;">${formatDate(profile.validity_date)}</div>
+          <div style="font-size: 1.5mm; font-weight: bold; color: #b45309;">${
+            profile.validity_date ? 
+              new Date(profile.validity_date).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric' 
+              }).toUpperCase() : 'DEC 31, 2028'
+          }</div>
         </div>
       </div>
 
-      <!-- Right Column - Information - Fixed width with proper overflow handling -->
-      <div style="flex: 1; background: rgba(255, 255, 255, 0.95); border-radius: 1mm; padding: 1.5mm; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; min-width: 0;">
-        <!-- Name - Fixed height with ellipsis for overflow -->
-        <div style="font-size: 3mm; font-weight: bold; color: #1e293b; margin-bottom: 1mm; line-height: 1.2; text-transform: uppercase; border-bottom: 0.3mm solid #fbbf24; padding-bottom: 0.8mm; font-family: Arial Black, Arial, sans-serif; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${profile.full_name || 'N/A'}">
+      <!-- Right Column - Information -->
+      <div style="flex: 1; background: rgba(255, 255, 255, 0.95); border-radius: 1mm; padding: 1.5mm; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden;">
+        <!-- Name -->
+        <div style="font-size: 3mm; font-weight: bold; color: #1e293b; margin-bottom: 1mm; line-height: 1.1; text-transform: uppercase; border-bottom: 0.3mm solid #fbbf24; padding-bottom: 0.8mm; font-family: Arial Black, sans-serif; flex-shrink: 0; word-wrap: break-word;">
           ${profile.full_name || 'N/A'}
         </div>
 
-        <!-- Status & Gender - Fixed height -->
-        <div style="display: flex; gap: 1mm; margin-bottom: 1.5mm; flex-shrink: 0;">
-          <div style="background: ${profile.status === 'approved' ? '#22c55e' : profile.status === 'pending' ? '#f59e0b' : profile.status === 'rejected' ? '#ef4444' : '#94a3b8'}; color: #ffffff; padding: 0.5mm 1mm; border-radius: 0.3mm; font-size: 1.2mm; font-weight: bold; white-space: nowrap;">
-            ${profile.status === 'approved' ? 'ACTIVE' : profile.status?.toUpperCase() || 'PENDING'}
-          </div>
-          <div style="background: #e0f2fe; color: #0c4a6e; padding: 0.5mm 1mm; border-radius: 0.3mm; font-size: 1.2mm; font-weight: bold; white-space: nowrap;">
-            ${profile.gender || 'N/A'}
+        <!-- Gender Only - No Status Badge, No Background -->
+        <div style="margin-bottom: 1.2mm; flex-shrink: 0;">
+          <div style="color: ${genderColor}; font-weight: bold; font-size: 1.2mm; text-transform: uppercase;">
+            ${genderText}
           </div>
         </div>
 
-        <!-- Personal Info - Scrollable area with fixed line heights -->
-        <div style="flex: 1; display: flex; flex-direction: column; gap: 1mm; overflow-y: auto; min-height: 0;">
+        <!-- Personal Info -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 0.6mm; overflow-y: auto;">
           <!-- Birthday -->
-          <div style="display: flex; align-items: flex-start; line-height: 1.3;">
-            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0; display: inline-block;">Birthday:</span>
-            <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1; line-height: 1.3;">
-              ${formatDate(profile.birthday)}
+          <div style="display: flex; align-items: flex-start;">
+            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Birthday:</span>
+            <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1;">
+              ${profile.birthday ? 
+                new Date(profile.birthday).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric',
+                  year: 'numeric' 
+                }).toUpperCase() : 'N/A'
+              }
             </span>
           </div>
 
           <!-- Contact -->
-          <div style="display: flex; align-items: flex-start; line-height: 1.3;">
-            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0; display: inline-block;">Contact:</span>
-            <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1; line-height: 1.3;">
+          <div style="display: flex; align-items: flex-start;">
+            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Contact:</span>
+            <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1;">
               ${profile.contact_number || 'N/A'}
             </span>
           </div>
 
-          <!-- Address - Multi-line with controlled height -->
-          <div style="display: flex; align-items: flex-start; line-height: 1.3;">
-            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0; display: inline-block;">Address:</span>
-            <span style="color: #1e293b; font-weight: 600; font-size: 1.3mm; word-wrap: break-word; flex: 1; line-height: 1.3; max-height: 8mm; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+          <!-- Address -->
+          <div style="display: flex; align-items: flex-start;">
+            <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Address:</span>
+            <span style="color: #1e293b; font-weight: 600; font-size: 1.3mm; line-height: 1.2; word-wrap: break-word; flex: 1;">
               ${profile.address || 'N/A'}
             </span>
           </div>
 
           <!-- Youth Organization if exists -->
           ${profile.youth_organization ? `
-            <div style="display: flex; align-items: flex-start; line-height: 1.3;">
-              <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0; display: inline-block;">Org:</span>
-              <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${profile.youth_organization}">
+            <div style="display: flex; align-items: flex-start;">
+              <span style="color: #64748b; font-weight: bold; font-size: 1.2mm; width: 12mm; flex-shrink: 0;">Organization:</span>
+              <span style="color: #1e293b; font-weight: 600; font-size: 1.4mm; word-wrap: break-word; flex: 1;">
                 ${profile.youth_organization}
               </span>
             </div>
           ` : ''}
         </div>
 
-        <!-- Signature Section - Fixed height at bottom -->
-        <div style="margin-top: 1.5mm; padding-top: 1mm; border-top: 0.2mm dashed #cbd5e1; flex-shrink: 0;">
+        <!-- Signature Section -->
+        <div style="margin-top: auto; padding-top: 1mm; border-top: 0.2mm dashed #cbd5e1; flex-shrink: 0;">
           <div style="text-align: center;">
             <div style="font-size: 0.9mm; color: #64748b; font-weight: bold; margin-bottom: 0.5mm;">AUTHORIZED SIGNATURE</div>
             <div style="width: 70%; margin: 0 auto; border-bottom: 0.2mm solid #1e293b; height: 1.5mm; margin-bottom: 0.3mm;"></div>
@@ -696,17 +858,17 @@ const createFrontContentHTML = (profile, photoUrl, placeholderBase64) => {
 
 const createBackContentHTML = (profile) => {
   return `
-    <div style="height: 100%; display: flex; flex-direction: column; box-sizing: border-box;">
-      <div style="background: rgba(255, 255, 255, 0.95); border-radius: 1mm; padding: 2mm; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.15); flex: 1; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden;">
-        <div style="font-size: 1.8mm; font-weight: bold; color: #dc2626; margin-bottom: 1.5mm; text-align: center; padding-bottom: 0.8mm; border-bottom: 0.2mm solid #ef4444; font-family: Arial Black, Arial, sans-serif; flex-shrink: 0;">
+    <div style="height: 100%; display: flex; flex-direction: column;">
+      <div style="background: rgba(255, 255, 255, 0.95); border-radius: 1mm; padding: 2mm; box-shadow: 0 0.3mm 1mm rgba(0,0,0,0.15); flex: 1; display: flex; flex-direction: column;">
+        <div style="font-size: 1.8mm; font-weight: bold; color: #dc2626; margin-bottom: 1.5mm; text-align: center; padding-bottom: 0.8mm; border-bottom: 0.2mm solid #ef4444; font-family: Arial Black, sans-serif;">
           PLEASE CONTACT
         </div>
 
-        <div style="flex: 1; display: flex; flex-direction: column; gap: 1.5mm; overflow-y: auto; min-height: 0;">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 1mm;">
           <!-- Contact Person -->
           <div>
             <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Contact Person</div>
-            <div style="font-size: 1.4mm; font-weight: 600; color: #475569; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; text-align: center; word-wrap: break-word; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${profile.emergency_contact_name || 'N/A'}">
+            <div style="font-size: 1.4mm; font-weight: 600; color: #475569; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; text-align: center; word-wrap: break-word; line-height: 1.2;">
               ${profile.emergency_contact_name || 'N/A'}
             </div>
           </div>
@@ -714,7 +876,7 @@ const createBackContentHTML = (profile) => {
           <!-- Relationship -->
           <div>
             <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Relationship</div>
-            <div style="font-size: 1.4mm; font-weight: 600; color: #475569; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; text-align: center; word-wrap: break-word; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${profile.emergency_contact_relationship || 'N/A'}">
+            <div style="font-size: 1.4mm; font-weight: 600; color: #475569; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; text-align: center; word-wrap: break-word; line-height: 1.2;">
               ${profile.emergency_contact_relationship || 'N/A'}
             </div>
           </div>
@@ -722,22 +884,22 @@ const createBackContentHTML = (profile) => {
           <!-- Contact Number -->
           <div>
             <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Contact Number</div>
-            <div style="font-size: 1.5mm; font-weight: bold; color: #dc2626; padding: 0.8mm; background: #fee2e2; border-radius: 0.5mm; border: 0.2mm solid #ef4444; font-family: 'Courier New', monospace; text-align: center; word-wrap: break-word; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${profile.emergency_contact_number || 'N/A'}">
+            <div style="font-size: 1.5mm; font-weight: bold; color: #dc2626; padding: 0.8mm; background: #fee2e2; border-radius: 0.5mm; border: 0.2mm solid #ef4444; font-family: 'Courier New', monospace; text-align: center; word-wrap: break-word; line-height: 1.2;">
               ${profile.emergency_contact_number || 'N/A'}
             </div>
           </div>
 
           <!-- Address -->
-          <div style="flex: 1;">
+          <div>
             <div style="font-size: 1.1mm; color: #64748b; font-weight: bold; margin-bottom: 0.4mm;">Address</div>
-            <div style="font-size: 1.3mm; font-weight: 600; color: #334155; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; line-height: 1.3; word-wrap: break-word; max-height: 12mm; overflow-y: auto; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;" title="${profile.emergency_contact_address || 'N/A'}">
+            <div style="font-size: 1.3mm; font-weight: 600; color: #334155; padding: 0.8mm; background: #f8fafc; border-radius: 0.5mm; border: 0.2mm solid #e2e8f0; line-height: 1.2; word-wrap: break-word; max-height: 10mm; overflow: hidden;">
               ${profile.emergency_contact_address || 'N/A'}
             </div>
           </div>
         </div>
 
-        <!-- Warning Notice - Fixed at bottom -->
-        <div style="margin-top: 1.5mm; padding: 0.8mm; background: #fef3c7; border-radius: 0.5mm; border: 0.2mm solid #fbbf24; text-align: center; flex-shrink: 0;">
+        <!-- Warning Notice -->
+        <div style="margin-top: 1.5mm; padding: 0.8mm; background: #fef3c7; border-radius: 0.5mm; border: 0.2mm solid #fbbf24; text-align: center;">
           <div style="font-size: 0.9mm; color: #92400e; font-weight: bold; line-height: 1.2;">
             If found, please contact emergency person above or return to Barangay Hall.
           </div>
@@ -755,97 +917,67 @@ const handleDownloadPDF = async () => {
       return;
     }
 
-    // Function to create a properly rendered canvas
-    const createSideCanvas = async (side) => {
-      // Create a temporary container with exact dimensions
+    toast.info('Loading image...');
+    
+    // Preload the profile image if it exists
+    if (selectedIDProfile.photo_url) {
+      await preloadImage(selectedIDProfile.photo_url);
+    }
+    
+    toast.info('Generating PDF...');
+
+    // Function to create canvas from HTML
+    const createCanvasFromHTML = async (html, width, height) => {
       const container = document.createElement('div');
       container.style.cssText = `
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 85.6mm !important;
-        height: 54mm !important;
-        background: white !important;
-        z-index: 999999 !important;
-        visibility: visible !important;
-        display: block !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        box-sizing: border-box !important;
-        overflow: hidden !important;
-        font-family: Arial, Helvetica, sans-serif !important;
+        position: fixed;
+        top: -9999px;
+        left: -9999px;
+        width: ${width}mm;
+        height: ${height}mm;
+        background: white;
       `;
-      
-      // Get HTML content
-      const htmlContent = side === 'front' 
-        ? createFixedIDCardHTML('front') 
-        : createFixedIDCardHTML('back');
-      
-      container.innerHTML = htmlContent;
+      container.innerHTML = html;
       document.body.appendChild(container);
-      
-      // Force all images to load
+
+      // Wait for images to load
       const images = container.querySelectorAll('img');
       await Promise.all(Array.from(images).map(img => {
-        return new Promise((resolve) => {
-          if (img.complete) {
-            resolve();
-          } else {
-            img.onload = resolve;
-            img.onerror = resolve;
-          }
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
         });
       }));
-      
-      // Wait for fonts and rendering
+
+      // Additional wait for rendering
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      try {
-        // Use html2canvas with exact dimensions
-        const canvas = await html2canvas(container, {
-          scale: 4,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff',
-          logging: false,
-          width: container.offsetWidth,
-          height: container.offsetHeight,
-          windowWidth: container.offsetWidth,
-          windowHeight: container.offsetHeight,
-          onclone: (clonedDoc, element) => {
-            // Ensure all elements maintain their styles
-            const style = clonedDoc.createElement('style');
-            style.textContent = `
-              * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-              }
-              div {
-                line-height: 1.2;
-              }
-            `;
-            clonedDoc.head.appendChild(style);
-          }
-        });
-        
-        return canvas;
-      } finally {
-        // Clean up
-        if (document.body.contains(container)) {
-          document.body.removeChild(container);
-        }
-      }
+
+      const canvas = await html2canvas(container, {
+        scale: 4,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: container.offsetWidth,
+        windowHeight: container.offsetHeight
+      });
+
+      document.body.removeChild(container);
+      return canvas;
     };
 
-    // Create canvases for both sides
-    toast.info('Generating front side...');
-    const frontCanvas = await createSideCanvas('front');
-    
-    toast.info('Generating back side...');
-    const backCanvas = await createSideCanvas('back');
+    // Generate HTML for both sides
+    const frontHTML = createFixedIDCardHTML(selectedIDProfile, 'front');
+    const backHTML = createFixedIDCardHTML(selectedIDProfile, 'back');
 
-    // Create PDF with exact dimensions
+    // Create canvases
+    const [frontCanvas, backCanvas] = await Promise.all([
+      createCanvasFromHTML(frontHTML, 85.6, 54),
+      createCanvasFromHTML(backHTML, 85.6, 54)
+    ]);
+
+    // Create PDF
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
@@ -853,17 +985,18 @@ const handleDownloadPDF = async () => {
       compress: true
     });
 
-    // Convert canvases to data URLs with maximum quality
-    const frontDataUrl = frontCanvas.toDataURL('image/png', 1.0);
-    const backDataUrl = backCanvas.toDataURL('image/png', 1.0);
+    // Add images to PDF
+    const frontImage = frontCanvas.toDataURL('image/jpeg', 1.0);
+    const backImage = backCanvas.toDataURL('image/jpeg', 1.0);
 
-    // Add images to PDF with exact positioning
-    pdf.addImage(frontDataUrl, 'PNG', 0, 0, 85.6, 54, undefined, 'FAST');
+    pdf.addImage(frontImage, 'JPEG', 0, 0, 85.6, 54, undefined, 'FAST');
     pdf.addPage([85.6, 54], 'landscape');
-    pdf.addImage(backDataUrl, 'PNG', 0, 0, 85.6, 54, undefined, 'FAST');
+    pdf.addImage(backImage, 'JPEG', 0, 0, 85.6, 54, undefined, 'FAST');
 
     // Save PDF
-    const sanitizedName = selectedIDProfile.full_name.replace(/[^a-zA-Z0-9]/g, '_');
+    const sanitizedName = selectedIDProfile.full_name
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .substring(0, 30);
     const fileName = `KKID_${selectedIDProfile.kkid_number || selectedIDProfile.id}_${sanitizedName}.pdf`;
     
     pdf.save(fileName);
@@ -871,100 +1004,13 @@ const handleDownloadPDF = async () => {
 
   } catch (error) {
     console.error('PDF download error:', error);
-    toast.error('Failed to generate PDF. Please try PNG download instead.');
+    toast.error('Failed to generate PDF. Trying fallback method...');
+        
   } finally {
     setPrinting(false);
   }
 };
 
-const handleDownloadPNG = async (downloadBothSides = false) => {
-  setPrinting(true);
-  try {
-    if (!selectedIDProfile) {
-      toast.error('No profile selected for download');
-      return;
-    }
-
-    const downloadSide = async (side) => {
-      const container = document.createElement('div');
-      container.style.cssText = `
-        position: fixed !important;
-        top: -9999px !important;
-        left: -9999px !important;
-        width: 85.6mm !important;
-        height: 54mm !important;
-        background: white !important;
-        z-index: -9999 !important;
-      `;
-      
-      const htmlContent = side === 'front' ? createFixedIDCardHTML('front') : createFixedIDCardHTML('back');
-      container.innerHTML = htmlContent;
-      document.body.appendChild(container);
-      
-      // Preload image
-      const img = container.querySelector('img');
-      if (img && img.src) {
-        await new Promise((resolve) => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const canvas = await html2canvas(container, {
-        scale: 4,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
-      
-      document.body.removeChild(container);
-      return canvas;
-    };
-
-    if (downloadBothSides) {
-      const [frontCanvas, backCanvas] = await Promise.all([
-        downloadSide('front'),
-        downloadSide('back')
-      ]);
-      
-      // Download front
-      const frontLink = document.createElement('a');
-      frontLink.download = `KKID-${selectedIDProfile.kkid_number || selectedIDProfile.id}-FRONT.png`;
-      frontLink.href = frontCanvas.toDataURL('image/png');
-      frontLink.click();
-      
-      // Small delay before downloading back
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Download back
-      const backLink = document.createElement('a');
-      backLink.download = `KKID-${selectedIDProfile.kkid_number || selectedIDProfile.id}-BACK.png`;
-      backLink.href = backCanvas.toDataURL('image/png');
-      backLink.click();
-      
-      toast.success('Both sides downloaded as PNG!');
-    } else {
-      const side = showCardBack ? 'back' : 'front';
-      const canvas = await downloadSide(side);
-      
-      const link = document.createElement('a');
-      link.download = `KKID-${selectedIDProfile.kkid_number || selectedIDProfile.id}-${side.toUpperCase()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      
-      toast.success(`${side.toUpperCase()} side downloaded!`);
-    }
-    
-  } catch (error) {
-    console.error('PNG download error:', error);
-    toast.error('Failed to download PNG');
-  } finally {
-    setPrinting(false);
-  }
-};
 
   const renderPhotoUpload = () => (
     <div className="space-y-2">
@@ -1704,22 +1750,33 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
       {/* Main Content - Fixed Height */}
 <div className="flex-1 p-6 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center min-h-[400px] max-h-[500px]">
   {/* Card Container */}
-  <div className="relative perspective-1000" style={{ 
+  <div className="relative" style={{ 
     width: '85.6mm', 
     height: '54mm',
-    margin: '0 auto'
+    margin: '0 auto',
+    transformStyle: 'preserve-3d',
+    transition: 'transform 0.5s',
+    transform: showCardBack ? 'rotateY(180deg)' : 'rotateY(0deg)'
   }}>
-    {/* Actual Card Content */}
-    <div className={`w-full h-full transition-transform duration-500 ${showCardBack ? 'rotate-y-180' : ''}`}>
-      {/* Front Side */}
-      <div className={`absolute w-full h-full ${showCardBack ? 'opacity-0' : 'opacity-100'}`}>
-        <div dangerouslySetInnerHTML={{ __html: createFixedIDCardHTML('front') }} />
-      </div>
-      
-      {/* Back Side */}
-      <div className={`absolute w-full h-full ${showCardBack ? 'opacity-100' : 'opacity-0'}`}>
-        <div dangerouslySetInnerHTML={{ __html: createFixedIDCardHTML('back') }} />
-      </div>
+    {/* Front Side */}
+    <div 
+      className="absolute inset-0"
+      style={{ 
+        backfaceVisibility: 'hidden'
+      }}
+    >
+      <KKIDCard profile={selectedIDProfile} side="front" showCardBack={showCardBack} />
+    </div>
+    
+    {/* Back Side */}
+    <div 
+      className="absolute inset-0"
+      style={{ 
+        backfaceVisibility: 'hidden',
+        transform: 'rotateY(180deg)'
+      }}
+    >
+      <KKIDCard profile={selectedIDProfile} side="back" showCardBack={showCardBack} />
     </div>
   </div>
   
@@ -1762,16 +1819,6 @@ const handleDownloadPNG = async (downloadBothSides = false) => {
       Download PDF
     </Button>
     
-    <Button
-      onClick={() => handleDownloadPNG(true)}
-      disabled={printing}
-      variant="outline"
-      size="lg"
-      className="border-purple-300 hover:bg-purple-50"
-    >
-      <Download className="h-5 w-5 mr-2" />
-      Download Both Sides PNG
-    </Button>
   </div>
 </div>
     </div>
