@@ -1081,18 +1081,19 @@ const handleDownloadPDF = async () => {
         <Input
           type="date"
           value={formData.birthday}
-          onChange={(e) => {
+          onChange={(e) => handleInputChange("birthday", e.target.value)}
+          onBlur={(e) => {
             const birthDate = new Date(e.target.value);
             const today = new Date();
+
             let age = today.getFullYear() - birthDate.getFullYear();
             const m = today.getMonth() - birthDate.getMonth();
+
             if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
               age--;
             }
 
-            if (age >= 15 && age <= 30) {
-              handleInputChange("birthday", e.target.value);
-            } else {
+            if (age < 15 || age > 30) {
               alert("Age must be between 15 and 30 years old.");
               handleInputChange("birthday", "");
             }
@@ -1798,15 +1799,6 @@ const handleDownloadPDF = async () => {
 {/* Action Buttons - Always visible */}
 <div className="p-6 border-t bg-white rounded-b-xl">
   <div className="flex flex-wrap gap-3 justify-center">
-    <Button
-      onClick={handlePrintBothSides}
-      disabled={printing}
-      className="bg-blue-600 hover:bg-blue-700"
-      size="lg"
-    >
-      <Printer className="h-5 w-5 mr-2" />
-      Print Both Sides
-    </Button>
     
     <Button
       onClick={handleDownloadPDF}

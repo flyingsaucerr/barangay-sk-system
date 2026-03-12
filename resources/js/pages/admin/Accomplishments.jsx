@@ -477,11 +477,13 @@ const AdminAccomplishments = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Date Completed *
                       </label>
+
                       <input
                         type="date"
                         name="date_completed"
                         value={formData.date_completed}
                         onChange={handleInputChange}
+                        max={new Date().toISOString().split("T")[0]}
                         required
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />

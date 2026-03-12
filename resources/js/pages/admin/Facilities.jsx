@@ -23,6 +23,8 @@ const Facilities = () => {
     capacity: '',
     location: '',
     hours: '',
+    open_time: '',
+    close_time: '',
     status: 'available',
     amenities: ''
   });
@@ -153,80 +155,75 @@ const getFacilityImage = (facility) => {
 
 const handleAddFacility = async (e) => {
   e.preventDefault();
+
   try {
+
+    const hours = `${formData.open_time} - ${formData.close_time}`;
+
     const formDataToSend = new FormData();
     formDataToSend.append('name', formData.name);
     formDataToSend.append('description', formData.description);
     formDataToSend.append('capacity', formData.capacity);
     formDataToSend.append('location', formData.location);
-    formDataToSend.append('hours', formData.hours);
+    formDataToSend.append('hours', hours);
     formDataToSend.append('status', formData.status);
-    
-    // Send amenities as individual form fields with the same name
-    const amenitiesArray = formData.amenities.split(',').map(a => a.trim()).filter(a => a);
+
+    const amenitiesArray = formData.amenities
+      .split(',')
+      .map(a => a.trim())
+      .filter(a => a);
+
     amenitiesArray.forEach(amenity => {
       formDataToSend.append('amenities[]', amenity);
     });
-    
-    if (imageFile) {
-      console.log('Image file being uploaded:', imageFile.name, imageFile.type, imageFile.size);
-      formDataToSend.append('image', imageFile);
-    } else {
-      console.log('No image file selected');
-    }
 
-    // Log FormData contents (for debugging)
-    for (let pair of formDataToSend.entries()) {
-      console.log(pair[0] + ': ' + pair[1]);
+    if (imageFile) {
+      formDataToSend.append('image', imageFile);
     }
 
     const response = await fetch('http://localhost:8000/api/facilities', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Accept': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+        Accept: 'application/json',
       },
       body: formDataToSend,
     });
 
     if (response.ok) {
       const responseData = await response.json();
-      console.log('Response data:', responseData); // Check what the backend returns
       await fetchFacilities();
       setShowAddForm(false);
       resetForm();
       alert('Facility created successfully!');
     } else {
       const errorText = await response.text();
-      console.error('Failed to create facility:', response.status, errorText);
       alert('Failed to create facility: ' + errorText);
     }
+
   } catch (error) {
-    console.error('Error creating facility:', error);
     alert('Error creating facility: ' + error.message);
   }
 };
 
 const handleEditFacility = (facility) => {
   setEditingFacility(facility);
+
   setFormData({
     name: facility.name,
     description: facility.description,
-    capacity: facility.capacity.toString(),
+    capacity: facility.capacity,
     location: facility.location,
-    hours: facility.hours,
     status: facility.status,
-    amenities: facility.amenities ? facility.amenities.join(', ') : ''
+    amenities: facility.amenities ? facility.amenities.join(', ') : '',
+    open_time: facility.hours?.split(' - ')[0] || '',
+    close_time: facility.hours?.split(' - ')[1] || '',
   });
-  
-  // Set image preview if exists
-  if (facility.image) {
-    const fullImageUrl = `http://localhost:8000/storage/${facility.image}`;
-    setImagePreview(fullImageUrl);
-  }
+
+   setImagePreview(facility.image_url || '');
+   setImageFile(null); 
   setShowAddForm(true);
 };
-
 const handleUpdateFacility = async (e) => {
   e.preventDefault();
   try {
@@ -235,7 +232,7 @@ const handleUpdateFacility = async (e) => {
     formDataToSend.append('description', formData.description);
     formDataToSend.append('capacity', formData.capacity);
     formDataToSend.append('location', formData.location);
-    formDataToSend.append('hours', formData.hours);
+    formDataToSend.append('hours', `${formData.open_time} - ${formData.close_time}`);
     formDataToSend.append('status', formData.status);
     
     // Send amenities as individual form fields with the same name
@@ -608,13 +605,30 @@ const handleUpdateFacility = async (e) => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Operating Hours *
                     </label>
-                    <Input
-                      type="text"
-                      value={formData.hours}
-                      onChange={(e) => setFormData(prev => ({ ...prev, hours: e.target.value }))}
-                      required
-                      placeholder="e.g., 6:00 AM - 10:00 PM"
-                    />
+
+                    <div className="flex items-center gap-3">
+                      
+                      <Input
+                        type="time"
+                        value={formData.open_time}
+                        onChange={(e) =>
+                          setFormData(prev => ({ ...prev, open_time: e.target.value }))
+                        }
+                        required
+                      />
+
+                      <span className="text-gray-500">to</span>
+
+                      <Input
+                        type="time"
+                        value={formData.close_time}
+                        onChange={(e) =>
+                          setFormData(prev => ({ ...prev, close_time: e.target.value }))
+                        }
+                        required
+                      />
+
+                    </div>
                   </div>
 
                   <div>
