@@ -324,15 +324,26 @@ const handleRegister = async (e) => {
                   <label htmlFor="contact_number" className="block text-sm font-medium text-gray-700">
                     Contact Number
                   </label>
+
                   <input
                     id="contact_number"
                     name="contact_number"
                     type="tel"
                     value={formData.contact_number}
-                    onChange={handleInputChange}
+                    maxLength="11"
+                    pattern="[0-9]{11}"
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, "");
+                      handleInputChange({
+                        target: {
+                          name: "contact_number",
+                          value: value
+                        }
+                      });
+                    }}
                     disabled={loading}
                     className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    placeholder="Optional"
+                    placeholder="Optional (11 digits)"
                   />
                 </div>
 
