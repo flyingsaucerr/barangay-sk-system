@@ -300,34 +300,45 @@ const handleUpdateFacility = async (e) => {
     }
   };
 
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      const facility = facilities.find(f => f.id === id);
-      const response = await fetch(`http://localhost:8000/api/facilities/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          ...facility,
-          status: newStatus,
-        }),
-      });
+const handleStatusChange = async (id, newStatus) => {
+  try {
+    const facility = facilities.find(f => f.id === id);
+    
+    // Create a clean object with only the fields needed for update
+    // IMPORTANT: Don't send the image field if it's not being changed
+    const updateData = {
+      name: facility.name,
+      description: facility.description,
+      capacity: facility.capacity,
+      location: facility.location,
+      hours: facility.hours,
+      status: newStatus,
+      amenities: facility.amenities || [],
+      // Don't include the image field at all when only updating status
+    };
 
-      if (response.ok) {
-        await fetchFacilities();
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update facility status:', response.status, errorText);
-        alert('Failed to update facility status: ' + errorText);
-      }
-    } catch (error) {
-      console.error('Error updating facility status:', error);
-      alert('Error updating facility status: ' + error.message);
+    const response = await fetch(`http://localhost:8000/api/facilities/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    if (response.ok) {
+      await fetchFacilities();
+    } else {
+      const errorData = await response.json();
+      console.error('Failed to update facility status:', response.status, errorData);
+      alert('Failed to update facility status: ' + (errorData.message || JSON.stringify(errorData.errors)));
     }
-  };
+  } catch (error) {
+    console.error('Error updating facility status:', error);
+    alert('Error updating facility status: ' + error.message);
+  }
+};
 
   const resetForm = () => {
     setFormData({

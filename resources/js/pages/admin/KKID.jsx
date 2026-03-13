@@ -228,28 +228,67 @@ const KKIDCard = ({ profile, side = 'front' }) => {
     setIsFullscreen(false);
   };
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please upload an image file');
-        return;
-      }
-      
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image size should be less than 5MB');
-        return;
-      }
-      
-      setPhotoFile(file);
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+const handlePhotoUpload = (e) => {
+  const file = e.target.files[0];
+  
+  // Clear previous errors
+  toast.dismiss();
+  
+  // Check if file exists
+  if (!file) {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    return;
+  }
+
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    toast.error('Please upload an image file (JPG, PNG, GIF, etc.)');
+    e.target.value = ''; // Clear the input
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    return;
+  }
+
+  // Check file size (5MB = 5 * 1024 * 1024 bytes)
+  const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+  if (file.size > maxSize) {
+    const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+    toast.error(`File size exceeds the 5MB limit. Your file is ${fileSizeInMB}MB. Please choose a smaller file.`);
+    e.target.value = ''; // Clear the input
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    return;
+  }
+
+  // Validate image dimensions (optional but recommended for ID photos)
+  const img = new Image();
+  img.onload = () => {
+    // Optional: Check if image is roughly 2x2 proportion
+    const aspectRatio = img.width / img.height;
+    if (aspectRatio < 0.8 || aspectRatio > 1.2) {
+      toast.warning('Image is not in a standard ID photo proportion. For best results, use a 2x2 inch photo.');
     }
+    
+    // Proceed with setting the file
+    setPhotoFile(file);
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
   };
+  
+  img.onerror = () => {
+    toast.error('Failed to load image. Please try another file.');
+    e.target.value = '';
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
+  
+  img.src = URL.createObjectURL(file);
+};
 
   const handleAddProfile = async (e) => {
     e.preventDefault();

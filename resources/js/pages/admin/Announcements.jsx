@@ -147,20 +147,46 @@ const getPlaceholderContent = (announcement) => {
 };
 const handleImageChange = (e) => {
   const file = e.target.files[0];
-  if (file) {
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(null); 
-      setTimeout(() => {
-        setImagePreview(reader.result);
-      }, 10);
-    };
-    reader.readAsDataURL(file);
-  } else {
+  
+  // Check if file exists
+  if (!file) {
     setImageFile(null);
     setImagePreview(null);
+    return;
   }
+  const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+  if (file.size > maxSize) {
+    // Show error message
+    alert(`File size exceeds the 5MB limit. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.`);
+    
+    // Clear the file input
+    e.target.value = '';
+    
+    // Reset state
+    setImageFile(null);
+    setImagePreview(null);
+    return;
+  }
+
+  // Check file type
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  if (!allowedTypes.includes(file.type)) {
+    alert('Please upload only image files (JPG, PNG, GIF, WEBP)');
+    e.target.value = '';
+    setImageFile(null);
+    setImagePreview(null);
+    return;
+  }
+
+  setImageFile(file);
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    setImagePreview(null); 
+    setTimeout(() => {
+      setImagePreview(reader.result);
+    }, 10);
+  };
+  reader.readAsDataURL(file);
 };
 
   const handleReadMore = (announcement) => {
