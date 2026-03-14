@@ -76,43 +76,6 @@ const AdminLogin = () => {
     }
   };
 
-  const handleQuickLogin = async (username, password) => {
-    setLoading(true);
-    setErrors({});
-    
-    try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ username, password, remember: false }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.user.role !== 'admin' && data.user.role !== 'staff') {
-          alert('Access denied. Admin or staff privileges required.');
-          return;
-        }
-
-        localStorage.setItem('authToken', data.token);
-        localStorage.setItem('userRole', data.user.role);
-        localStorage.setItem('userId', data.user.id);
-        localStorage.setItem('userName', data.user.name);
-        navigate('/admin/dashboard');
-      } else {
-        alert('Quick login failed: ' + (data.message || 'Invalid credentials'));
-      }
-    } catch (error) {
-      alert('Quick login error: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -128,28 +91,6 @@ const AdminLogin = () => {
           </p>
         </div>
 
-        {/* Quick Login for Development - Remove in production */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-            <h3 className="text-sm font-medium text-yellow-800 mb-2">Development Quick Login:</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <button 
-                onClick={() => handleQuickLogin('admin', 'password')}
-                disabled={loading}
-                className="bg-green-600 text-white py-2 px-3 rounded text-sm hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
-                Admin
-              </button>
-              <button 
-                onClick={() => handleQuickLogin('staff', 'password')}
-                disabled={loading}
-                className="bg-blue-600 text-white py-2 px-3 rounded text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                Staff
-              </button>
-            </div>
-          </div>
-        )}
 
         <form onSubmit={handleLogin} className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-lg">
           <div>
