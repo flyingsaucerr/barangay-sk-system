@@ -12,8 +12,6 @@ import {
   Upload, FlipHorizontal, Maximize2, Minimize2, CreditCard
 } from "lucide-react";
 import { toast } from "sonner";
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 
 const KKIDCard = ({ profile, side = 'front' }) => {
   const cardRef = useRef(null);
@@ -1193,6 +1191,8 @@ const AdminKKID = () => {
   const photoInputRef = useRef(null);
   const idCardFrontRef = useRef(null);
   const idCardBackRef = useRef(null);
+  const [fileSizeError, setFileSizeError] = useState(null);
+  const [fileSize, setFileSize] = useState(null);
   const [statistics, setStatistics] = useState({
     total: 0,
     approved: 0,
@@ -1363,58 +1363,64 @@ const AdminKKID = () => {
     setIsFullscreen(false);
   };
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    
-    toast.dismiss();
-    
-    if (!file) {
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      return;
-    }
+const handlePhotoUpload = (e) => {
+  const file = e.target.files[0];
+  
+  toast.dismiss();
+  setFileSizeError(null);
+  setFileSize(null);
+  
+  if (!file) {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    return;
+  }
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file (JPG, PNG, GIF, etc.)');
-      e.target.value = '';
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      return;
-    }
+  if (!file.type.startsWith('image/')) {
+    toast.error('Please upload an image file (JPG, PNG, GIF, etc.)');
+    e.target.value = '';
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    return;
+  }
 
-    const maxSize = 5 * 1024 * 1024; 
-    if (file.size > maxSize) {
-      const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-      toast.error(`File size exceeds the 5MB limit. Your file is ${fileSizeInMB}MB. Please choose a smaller file.`);
-      e.target.value = ''; 
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      return;
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+  setFileSize(fileSizeInMB);
+  
+  if (file.size > maxSize) {
+    setFileSizeError(`File size exceeds the 5MB limit. Your file is ${fileSizeInMB}MB.`);
+    toast.error(`File size exceeds the 5MB limit. Your file is ${fileSizeInMB}MB. Please choose a smaller file.`);
+    e.target.value = '';
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    return;
+  }
+  
+  const img = new Image();
+  img.onload = () => {
+    const aspectRatio = img.width / img.height;
+    if (aspectRatio < 0.8 || aspectRatio > 1.2) {
+      toast.warning('Image is not in a standard ID photo proportion. For best results, use a 2x2 inch photo.');
     }
-    const img = new Image();
-    img.onload = () => {
-      const aspectRatio = img.width / img.height;
-      if (aspectRatio < 0.8 || aspectRatio > 1.2) {
-        toast.warning('Image is not in a standard ID photo proportion. For best results, use a 2x2 inch photo.');
-      }
-      setPhotoFile(file);
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    };
+    setPhotoFile(file);
     
-    img.onerror = () => {
-      toast.error('Failed to load image. Please try another file.');
-      e.target.value = '';
-      setPhotoFile(null);
-      setPhotoPreview(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoPreview(reader.result);
     };
-    
-    img.src = URL.createObjectURL(file);
+    reader.readAsDataURL(file);
   };
+  
+  img.onerror = () => {
+    toast.error('Failed to load image. Please try another file.');
+    e.target.value = '';
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
+  
+  img.src = URL.createObjectURL(file);
+};
 
   const handleAddProfile = async (e) => {
     e.preventDefault();
@@ -1710,52 +1716,74 @@ const AdminKKID = () => {
   };
 
 
-  const renderPhotoUpload = () => (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        ID Photo (2x2 inches)
-      </label>
-      
-      <div className="flex items-center gap-4">
-        <div className="relative w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50">
-          {photoPreview ? (
-            <img 
-              src={photoPreview} 
-              alt="Photo preview" 
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-              <Camera className="h-8 w-8 mb-2" />
-              <span className="text-xs">No photo</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex-1">
-          <input
-            type="file"
-            ref={photoInputRef}
-            onChange={handlePhotoUpload}
-            accept="image/*"
-            className="hidden"
+const renderPhotoUpload = () => (
+  <div className="space-y-2">
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      ID Photo (2x2 inches)
+    </label>
+    
+    <div className="flex items-center gap-4">
+      <div className="relative w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+        {photoPreview ? (
+          <img 
+            src={photoPreview} 
+            alt="Photo preview" 
+            className="w-full h-full object-cover"
           />
-          <Button
-            type="button"
-            onClick={() => photoInputRef.current?.click()}
-            variant="outline"
-            className="w-full"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            {photoPreview ? 'Change Photo' : 'Upload Photo'}
-          </Button>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+            <Camera className="h-8 w-8 mb-2" />
+            <span className="text-xs">No photo</span>
+          </div>
+        )}
+      </div>
+      
+      <div className="flex-1">
+        <input
+          type="file"
+          ref={photoInputRef}
+          onChange={handlePhotoUpload}
+          accept="image/*"
+          className="hidden"
+        />
+        <Button
+          type="button"
+          onClick={() => photoInputRef.current?.click()}
+          variant="outline"
+          className={`w-full ${fileSizeError ? 'border-red-500 text-red-600 hover:bg-red-50' : ''}`}
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          {photoPreview ? 'Change Photo' : 'Upload Photo'}
+        </Button>
+        
+        {/* File size indicator */}
+        {fileSize && !fileSizeError && (
+          <p className="text-xs text-green-600 mt-2 flex items-center">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            File size: {fileSize}MB
+          </p>
+        )}
+        
+        {/* Error message with visual indicator */}
+        {fileSizeError && (
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-xs text-red-600 flex items-start">
+              <span className="font-medium mr-1">⚠️</span>
+              {fileSizeError}
+            </p>
+          </div>
+        )}
+        
+        {/* Help text */}
+        {!fileSizeError && (
           <p className="text-xs text-gray-500 mt-2">
             Upload a 2x2 inch photo. Max 5MB.
           </p>
-        </div>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 
   const renderForm = () => (
     <form onSubmit={editingProfile ? handleUpdateProfile : handleAddProfile} className="p-6 space-y-4">
@@ -2282,9 +2310,14 @@ const AdminKKID = () => {
                       variant="outline" 
                       className="flex-1"
                       onClick={() => handleViewID(profile)}
+                      disabled={profile.status !== 'approved'}
+                      title={profile.status !== 'approved' ? 'ID must be approved first' : 'View ID card'}
                     >
                       <CreditCard className="mr-2 h-4 w-4" />
-                      View ID
+                      Print ID
+                      {profile.status !== 'approved' && (
+                        <span className="ml-1 text-xs text-yellow-600">(Pending)</span>
+                      )}
                     </Button>
                   </div>
                 </CardContent>
@@ -2499,13 +2532,23 @@ const AdminKKID = () => {
             {/* Action Buttons */}
             <div className="p-6 border-t bg-white rounded-b-xl">
               <div className="flex flex-wrap gap-3 justify-center">
-             
+                {selectedIDProfile?.status !== 'approved' && (
+                  <div className="text-center mb-2 w-full">
+                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 px-3 py-1">
+                      <Info className="h-3 w-3 mr-1" />
+                      Only approved IDs can be printed
+                    </Badge>
+                  </div>
+                )}
                 <Button
                   onClick={handlePrintBothSides}
-                  disabled={printing}
+                  disabled={printing || selectedIDProfile?.status !== 'approved'}
                   variant="outline"
                   size="lg"
-                  className="border-green-300 hover:bg-green-50"
+                  className={`border-green-300 hover:bg-green-50 ${
+                    selectedIDProfile?.status !== 'approved' ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title={selectedIDProfile?.status !== 'approved' ? 'Only approved IDs can be printed' : 'Print ID card'}
                 >
                   <Printer className="h-5 w-5 mr-2" />
                   Print Both Sides
