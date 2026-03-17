@@ -19,7 +19,6 @@ const SubmitRequest = () => {
   });
 
   const requestTypes = [
-    { value: 'solicitation', label: 'Solicitation Request' },
     { value: 'suggestion', label: 'Suggestion' },
     { value: 'change_request', label: 'Request for Change' }
   ];
@@ -100,8 +99,6 @@ const handleSubmit = async (e) => {
 
   const getRequestTypeDescription = (type) => {
     switch (type) {
-      case 'solicitation':
-        return 'Request for support, assistance, or donations for community activities or personal needs';
       case 'suggestion':
         return 'Share your ideas and recommendations to improve barangay services and community welfare';
       case 'change_request':
@@ -121,7 +118,7 @@ const handleSubmit = async (e) => {
           </div>
             <h1 className="text-4xl font-bold mb-4">Submit a Request</h1>
             <p className="text-xl opacity-90 max-w-2xl mx-auto">
-              Share your suggestions, solicitations, or requests for changes to help improve our barangay community
+              Share your suggestions or requests for changes to help improve our barangay community
             </p>
             </div>
           </div>
@@ -129,20 +126,6 @@ const handleSubmit = async (e) => {
 
         {/* Request Types Info */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6  mb-8 mt-10">
-          <Card className="text-center hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                <User className="h-6 w-6 text-blue-600" />
-              </div>
-              <CardTitle className="text-lg">Solicitation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Request for support, assistance, or donations for community activities or personal needs
-              </CardDescription>
-            </CardContent>
-          </Card>
-
           <Card className="text-center hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">

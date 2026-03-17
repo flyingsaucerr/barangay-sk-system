@@ -58,7 +58,6 @@ const AdminRequests = () => {
     in_progress_requests: 0,
     completed_requests: 0,
     requests_by_type: {
-      solicitation: 0,
       suggestion: 0,
       change_request: 0
     }
@@ -719,7 +718,7 @@ useEffect(() => {
 
   const getTypeText = (type) => {
     switch (type) {
-      case "solicitation": return "Solicitation";
+      
       case "suggestion": return "Suggestion";
       case "change_request": return "Change Request";
       default: return type;
@@ -728,7 +727,7 @@ useEffect(() => {
 
   const getTypeColor = (type) => {
     switch (type) {
-      case "solicitation": return "bg-purple-100 text-purple-800 border-purple-200";
+      
       case "suggestion": return "bg-indigo-100 text-indigo-800 border-indigo-200";
       case "change_request": return "bg-orange-100 text-orange-800 border-orange-200";
       default: return "bg-gray-100 text-gray-800 border-gray-200";
@@ -801,7 +800,7 @@ useEffect(() => {
           <p className="text-muted-foreground mt-2">
             {isStaff() 
               ? 'View and manage requests assigned to you' 
-              : 'Review and manage community requests, suggestions, and solicitations'
+              : 'Review and manage community requests, suggestions'
             }
           </p>
           {userRole && (
@@ -874,7 +873,6 @@ useEffect(() => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="solicitation">Solicitation</SelectItem>
             <SelectItem value="suggestion">Suggestion</SelectItem>
             <SelectItem value="change_request">Change Request</SelectItem>
           </SelectContent>

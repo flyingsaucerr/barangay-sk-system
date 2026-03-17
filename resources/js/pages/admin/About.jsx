@@ -22,8 +22,9 @@ import {
   X,
   Save,
   Loader2,
+  Instagram,
+  Facebook
 } from "lucide-react";
-
 // Assets
 import sk1_cj from "@/assets/sk1_cj.jpg";
 import sk2_melody from "@/assets/sk2_melody.jpg";
@@ -438,7 +439,7 @@ const fetchAchievements = async () => {
         {/* Officials */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-center text-foreground mb-8">
-            Barangay Officials
+            SK Officials
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

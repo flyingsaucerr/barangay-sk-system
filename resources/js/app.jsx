@@ -33,6 +33,7 @@ import AdminAccomplishments from "./pages/Admin/Accomplishments";
 // Components
 import Navbar from "./components/Navbar";
 import AdminNavbar from "./components/AdminNavbar";
+import Footer from "./components/Footer";
 
 // Auth protection component
 const ProtectedRoute = ({ children }) => {
@@ -48,19 +49,20 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Public Layout component with Navbar
-const PublicLayout = () => (
+export const PublicLayout = () => (
   <>
     <Navbar />
     <Outlet /> {/* This is where the public page content will be rendered */}
+    <Footer /> {/* Footer added */}
   </>
 );
 
 // Admin Layout component
-const AdminLayout = () => (
+export const AdminLayout = () => (
   <>
     <AdminNavbar />
     <Outlet /> {/* This is where the admin page content will be rendered */}
+    <Footer /> {/* Footer added */}
   </>
 );
 

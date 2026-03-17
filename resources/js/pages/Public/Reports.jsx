@@ -128,19 +128,24 @@ const MonthlyReportsPublic = () => {
   }, [searchTerm, yearFilter, monthFilter]);
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center space-x-2">
-            <FileText className="h-8 w-8 text-primary" />
-            <span>Monthly Reports</span>
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            View official barangay reports and stay informed about community activities
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50">
+
+      {/* Header Section */}
+      <div className="bg-blue-600 text-white py-12">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex justify-center mb-4">
+            <FileText className="h-12 w-12 text-white" /> {/* Icon */}
+          </div>
+          <h1 className="text-4xl font-bold mb-4">Monthly Reports</h1>
+          <p className="text-xl opacity-90 max-w-2xl mx-auto">
+            View official barangay reports and stay informed about community activities. 
+            Stay updated with accurate and timely information for transparency and accountability.
           </p>
         </div>
       </div>
+
+      {/* Page Content */}
+      <div className="container mx-auto px-4 py-12">
 
       {/* Search and Filters */}
       <div className="flex flex-col md:flex-row gap-4">
@@ -180,7 +185,7 @@ const MonthlyReportsPublic = () => {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-600 mb-1">{statistics.total_reports}</div>
@@ -382,6 +387,7 @@ const MonthlyReportsPublic = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

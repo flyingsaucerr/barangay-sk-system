@@ -385,7 +385,7 @@ const KKIDCard = ({ profile, side = 'front' }) => {
                   marginBottom: '0.2mm'
                 }}></div>
                 <div style={{ fontSize: '0.9mm', color: '#64748b', fontStyle: 'italic', lineHeight: 1.2 }}>
-                  Barangay Chairman
+                  SK Chairman
                 </div>
               </div>
             </div>
