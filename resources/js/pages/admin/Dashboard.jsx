@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FeedbackCharts } from "@/components/admin/FeedbackCharts";
+import { MessageSquare } from "lucide-react";
 import { 
   FileText, 
   BarChart3,
@@ -48,7 +51,6 @@ import sk6_danilo from "@/assets/sk6_danilo.jpg";
 import sk7_rie from "@/assets/sk7_rie.jpg";
 import sk8_jemimah from "@/assets/sk8_jemimah.jpg";
 
-// StatsCard Component (keep for dashboard stats if needed)
 const StatsCard = ({ title, value, icon: Icon, description }) => (
   <Card>
     <CardContent className="p-6">
@@ -66,7 +68,6 @@ const StatsCard = ({ title, value, icon: Icon, description }) => (
   </Card>
 );
 
-// Edit Kagawad Modal
 const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -253,7 +254,6 @@ const EditKagawadModal = ({ isOpen, onClose, kagawad, onSave }) => {
   );
 };
 
-// Add Activity Modal
 const AddActivityModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -496,9 +496,10 @@ const KagawadManagement = ({
 );
 
 const AdminDashboard = () => {
-  // Check authentication from localStorage directly
+  const [feedbackData, setFeedbackData] = useState([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const API_URL = 'http://localhost:8000/api';
   
   // Modal states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -510,6 +511,7 @@ const AdminDashboard = () => {
     const token = localStorage.getItem('authToken');
     const role = localStorage.getItem('userRole');
     const name = localStorage.getItem('userName');
+    fetchFeedback();
     
     if (token && (role === 'admin' || role === 'staff')) {
       setIsAuthenticated(true);
@@ -521,7 +523,56 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  // All kagawads list
+const fetchFeedback = async () => {
+  try {
+    const token = localStorage.getItem('authToken');
+    console.log('Fetching feedback with token:', token ? 'Present' : 'Missing');
+    
+    if (!token) {
+      console.error('No auth token found - user might not be logged in');
+      return;
+    }
+
+    const response = await fetch(`${API_URL}/feedback`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    console.log('Feedback Response Status:', response.status);
+    
+    if (response.status === 401) {
+      console.error('Unauthorized - token might be invalid or expired');
+      // Optionally, try to refresh the token or redirect to login
+      return;
+    }
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Feedback Data Received:', data);
+      
+      if (Array.isArray(data)) {
+        setFeedbackData(data);
+      } else if (data && data.data && Array.isArray(data.data)) {
+        setFeedbackData(data.data);
+      } else {
+        console.warn('Unexpected data format:', data);
+        setFeedbackData([]);
+      }
+    } else {
+      const errorText = await response.text();
+      console.error('Failed to fetch feedback:', errorText);
+      setFeedbackData([]);
+    }
+  } catch (error) {
+    console.error('Error fetching feedback:', error);
+    setFeedbackData([]);
+  }
+};
+
 const [allKagawads, setAllKagawads] = useState([
   {
     id: '1',
@@ -876,31 +927,47 @@ useEffect(() => {
 
             {/* Services Section */}
             <section className="py-8">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl lg:text-4xl font-bold mb-4">Our Services</h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Discover the digital services we offer to make your barangay experience seamless and efficient.
-                </p>
-              </div>
+            <Tabs defaultValue="services" className="w-full">
+              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+                <TabsTrigger value="services">Services</TabsTrigger>
+                <TabsTrigger value="feedback" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Feedback ({feedbackData.length})
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="services" className="mt-6">
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl lg:text-4xl font-bold mb-4">Our Services</h2>
+                  <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                    Discover the digital services we offer to make your barangay experience seamless and efficient.
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {services.map((service, index) => (
-                  <Card key={index} className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
-                    <Link to={service.link}>
-                      <CardHeader className="text-center pb-4">
-                        <div className="mx-auto p-3 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                          {service.icon}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="text-center">
-                        <CardTitle className="mb-2 group-hover:text-primary">{service.title}</CardTitle>
-                        <CardDescription>{service.description}</CardDescription>
-                      </CardContent>
-                    </Link>
-                  </Card>
-                ))}
-              </div>
-            </section>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {services.map((service, index) => (
+                    <Card key={index} className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
+                      <Link to={service.link}>
+                        <CardHeader className="text-center pb-4">
+                          <div className="mx-auto p-3 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                            {service.icon}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="text-center">
+                          <CardTitle className="mb-2 group-hover:text-primary">{service.title}</CardTitle>
+                          <CardDescription>{service.description}</CardDescription>
+                        </CardContent>
+                      </Link>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="feedback" className="mt-6">
+                <FeedbackCharts feedbackData={feedbackData} />
+              </TabsContent>
+            </Tabs>
+          </section>
           </div>
         </section>
       )}

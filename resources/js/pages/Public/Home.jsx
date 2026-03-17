@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FeedbackModal } from "@/components/FeedbackModal";
+import { FeedbackButton } from "@/components/FeedbackButton";
 import { 
   FileText, 
   BarChart3,
@@ -46,7 +48,6 @@ const kagawadImages = {
 };
 
 const KagawadOfTheDay = ({ kagawad }) => {
-  // Helper function to get the correct image source
   const getImageSource = () => {
     if (!kagawad) return null;
     
@@ -164,6 +165,8 @@ export default function PublicHome() {
   const [featuredKagawad, setFeaturedKagawad] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [accomplishments, setAccomplishments] = useState([]);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackData, setFeedbackData] = useState([]);
   const [stats, setStats] = useState({
     activeProjects: 0,
     completedRequests: 0,
@@ -171,148 +174,165 @@ export default function PublicHome() {
     reports: "Monthly"
   });
   const [loading, setLoading] = useState(true);
-
-  // Fetch all data
-useEffect(() => {
-  const fetchAllData = async () => {
+    
+  const handleFeedbackSubmit = async (feedbackData) => {
     try {
-      setLoading(true);
-      
-      // Fetch featured kagawad from localStorage
-      const savedKagawad = localStorage.getItem('featuredKagawad');
-      if (savedKagawad) {
-        const parsedKagawad = JSON.parse(savedKagawad);
-        const fullKagawad = {
-          ...parsedKagawad,
-          image: parsedKagawad.id && kagawadImages[parsedKagawad.id] 
-            ? kagawadImages[parsedKagawad.id] 
-            : parsedKagawad.image || null
-        };
-        setFeaturedKagawad(fullKagawad);
+      const response = await fetch(`${API_URL}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(feedbackData),
+      });
+
+      if (response.ok) {
+        alert('Thank you for your feedback!');
       } else {
-        setFeaturedKagawad({
-          id: '1',
-          name: 'CJ Ancheta',
-          position: 'SK Chairman',
-          image: sk1_cj,
-          bio: 'Dedicated to serving the youth of our barangay with passion and commitment.',
-          contact: '+63 912 345 6789',
-          email: 'cj.ancheta@skbarangay.gov.ph',
-          address: 'Barangay Tumana, Marikina City',
-          recentActivities: []
-        });
+        alert('Failed to submit feedback. Please try again.');
       }
-
-      // Fetch announcements
-      try {
-        const announcementsResponse = await fetch(`${API_URL}/announcements`);
-        if (announcementsResponse.ok) {
-          const announcementsData = await announcementsResponse.json();
-          setAnnouncements(announcementsData.slice(0, 3));
-        }
-      } catch (error) {
-        console.error('Error fetching announcements:', error);
-      }
-
-      // Fetch accomplishments and projects in parallel
-      const [accomplishmentsRes, projectsRes, statsRes] = await Promise.allSettled([
-        fetch(`${API_URL}/accomplishments`),
-        fetch(`${API_URL}/projects`),
-        fetch(`${API_URL}/public/stats`) // Your new public endpoint
-      ]);
-
-      // Handle accomplishments
-      if (accomplishmentsRes.status === 'fulfilled' && accomplishmentsRes.value.ok) {
-        const accomplishmentsData = await accomplishmentsRes.value.json();
-        setAccomplishments(accomplishmentsData.slice(0, 3));
-        setStats(prev => ({ ...prev, accomplishments: accomplishmentsData.length || 0 }));
-      }
-
-      // Handle projects
-      if (projectsRes.status === 'fulfilled' && projectsRes.value.ok) {
-        const projectsData = await projectsRes.value.json();
-        setStats(prev => ({ ...prev, activeProjects: Array.isArray(projectsData) ? projectsData.length : 0 }));
-      }
-
-// Replace the entire request statistics fetching section with this:
-
-// Fetch request statistics from public endpoint
-try {
-  // Use your new public endpoint instead of the admin endpoint
-  const statsResponse = await fetch(`${API_URL}/public/stats`);
-  
-  if (statsResponse.ok) {
-    const statsData = await statsResponse.json();
-    console.log('Public stats response:', statsData); // Debug log
-    
-    // Update stats based on your API response structure
-    setStats(prev => ({
-      ...prev,
-      completedRequests: statsData.completed_requests || 0,
-      activeProjects: statsData.active_projects || prev.activeProjects,
-      accomplishments: statsData.accomplishments || prev.accomplishments
-    }));
-  } else {
-    console.error('Failed to fetch public stats:', statsResponse.status);
-    // Fallback to manual counting if needed
-    await fetchRequestsManually();
-  }
-} catch (error) {
-  console.error('Error fetching public stats:', error);
-  // Fallback to manual counting
-  await fetchRequestsManually();
-}
-
-// Helper function for manual counting as fallback
-async function fetchRequestsManually() {
-  try {
-    const token = localStorage.getItem('authToken');
-    const requestsResponse = await fetch(`${API_URL}/admin/requests`, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      }
-    });
-    
-    if (requestsResponse.ok) {
-      const responseData = await requestsResponse.json();
-      
-      // Extract requests array
-      let requestsArray = [];
-      if (Array.isArray(responseData)) {
-        requestsArray = responseData;
-      } else if (responseData.data && Array.isArray(responseData.data)) {
-        requestsArray = responseData.data;
-      } else if (responseData.requests && Array.isArray(responseData.requests)) {
-        requestsArray = responseData.requests;
-      }
-      
-      // Count completed requests
-      const completedCount = requestsArray.filter(req => 
-        req.status?.toLowerCase() === 'completed' || 
-        req.status?.toLowerCase() === 'approved'
-      ).length;
-      
-      setStats(prev => ({
-        ...prev,
-        completedRequests: completedCount
-      }));
-    }
-  } catch (error) {
-    console.error('Error in manual fetch:', error);
-  }
-}
-
     } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error submitting feedback:', error);
+      alert('Error submitting feedback. Please try again.');
     }
   };
 
-  fetchAllData();
-}, []);
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        setLoading(true);
+        
+        const savedKagawad = localStorage.getItem('featuredKagawad');
+        if (savedKagawad) {
+          const parsedKagawad = JSON.parse(savedKagawad);
+          const fullKagawad = {
+            ...parsedKagawad,
+            image: parsedKagawad.id && kagawadImages[parsedKagawad.id] 
+              ? kagawadImages[parsedKagawad.id] 
+              : parsedKagawad.image || null
+          };
+          setFeaturedKagawad(fullKagawad);
+        } else {
+          setFeaturedKagawad({
+            id: '1',
+            name: 'CJ Ancheta',
+            position: 'SK Chairman',
+            image: sk1_cj,
+            bio: 'Dedicated to serving the youth of our barangay with passion and commitment.',
+            contact: '+63 912 345 6789',
+            email: 'cj.ancheta@skbarangay.gov.ph',
+            address: 'Barangay Tumana, Marikina City',
+            recentActivities: []
+          });
+        }
+
+        // Fetch announcements
+        try {
+          const announcementsResponse = await fetch(`${API_URL}/announcements`);
+          if (announcementsResponse.ok) {
+            const announcementsData = await announcementsResponse.json();
+            setAnnouncements(announcementsData.slice(0, 3));
+          }
+        } catch (error) {
+          console.error('Error fetching announcements:', error);
+        }
+
+        // Fetch accomplishments and projects in parallel
+        const [accomplishmentsRes, projectsRes, statsRes] = await Promise.allSettled([
+          fetch(`${API_URL}/accomplishments`),
+          fetch(`${API_URL}/projects`),
+          fetch(`${API_URL}/public/stats`) 
+        ]);
+
+        // Handle accomplishments
+        if (accomplishmentsRes.status === 'fulfilled' && accomplishmentsRes.value.ok) {
+          const accomplishmentsData = await accomplishmentsRes.value.json();
+          setAccomplishments(accomplishmentsData.slice(0, 3));
+          setStats(prev => ({ ...prev, accomplishments: accomplishmentsData.length || 0 }));
+        }
+
+        // Handle projects
+        if (projectsRes.status === 'fulfilled' && projectsRes.value.ok) {
+          const projectsData = await projectsRes.value.json();
+          setStats(prev => ({ ...prev, activeProjects: Array.isArray(projectsData) ? projectsData.length : 0 }));
+        }
+
+  try {
+    // Use your new public endpoint instead of the admin endpoint
+    const statsResponse = await fetch(`${API_URL}/public/stats`);
+    
+    if (statsResponse.ok) {
+      const statsData = await statsResponse.json();
+      console.log('Public stats response:', statsData); // Debug log
+      
+      // Update stats based on your API response structure
+      setStats(prev => ({
+        ...prev,
+        completedRequests: statsData.completed_requests || 0,
+        activeProjects: statsData.active_projects || prev.activeProjects,
+        accomplishments: statsData.accomplishments || prev.accomplishments
+      }));
+    } else {
+      console.error('Failed to fetch public stats:', statsResponse.status);
+      // Fallback to manual counting if needed
+      await fetchRequestsManually();
+    }
+  } catch (error) {
+    console.error('Error fetching public stats:', error);
+    // Fallback to manual counting
+    await fetchRequestsManually();
+  }
+
+  // Helper function for manual counting as fallback
+  async function fetchRequestsManually() {
+    try {
+      const token = localStorage.getItem('authToken');
+      const requestsResponse = await fetch(`${API_URL}/admin/requests`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      
+      if (requestsResponse.ok) {
+        const responseData = await requestsResponse.json();
+        
+        // Extract requests array
+        let requestsArray = [];
+        if (Array.isArray(responseData)) {
+          requestsArray = responseData;
+        } else if (responseData.data && Array.isArray(responseData.data)) {
+          requestsArray = responseData.data;
+        } else if (responseData.requests && Array.isArray(responseData.requests)) {
+          requestsArray = responseData.requests;
+        }
+        
+        // Count completed requests
+        const completedCount = requestsArray.filter(req => 
+          req.status?.toLowerCase() === 'completed' || 
+          req.status?.toLowerCase() === 'approved'
+        ).length;
+        
+        setStats(prev => ({
+          ...prev,
+          completedRequests: completedCount
+        }));
+      }
+    } catch (error) {
+      console.error('Error in manual fetch:', error);
+    }
+  }
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, []);
 
   const services = [
     { title: "Document Requests", description: "Submit and track document requests", icon: <FileText className="h-6 w-6" />, link: "/services" },
@@ -562,6 +582,8 @@ async function fetchRequestsManually() {
         </div>
       </section>
 
+      
+
       {/* Footer / Social Media Section */}
       <section className="py-12 bg-gray-900">
         <div className="container mx-auto px-4 text-center text-gray-300">
@@ -602,8 +624,14 @@ async function fetchRequestsManually() {
           <p className="mt-8 text-xs text-gray-500">
             © {new Date().getFullYear()} SK Tumana. All rights reserved.
           </p>
-        </div>
+        </div>           
       </section>
+      <FeedbackModal
+        isOpen={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        onSubmit={handleFeedbackSubmit}
+      />
+      <FeedbackButton onClick={() => setShowFeedback(true)} />
     </div>
   );
 }

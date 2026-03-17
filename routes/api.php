@@ -15,6 +15,7 @@ use App\Http\Controllers\KKIDProfileController;
 use App\Http\Controllers\FilePrintingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AchievementController;
+use App\Http\Controllers\FeedbackController;
 
 Route::options('/{any}', function () {
     return response('', 200)
@@ -46,6 +47,7 @@ Route::get('/debug-test', function() {
     ]);
 });
 
+// PUBLIC ROUTES - NO AUTHENTICATION REQUIRED
 // Authentication routes
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
@@ -70,8 +72,8 @@ Route::get('/public/stats', function() {
     ]);
 });
 
-
-
+// PUBLIC FEEDBACK SUBMISSION - NO AUTH REQUIRED
+Route::post('/feedback', [FeedbackController::class, 'store']);
 
 // Public APIs (No authentication required)
 Route::middleware('api')->group(function () {
@@ -110,7 +112,8 @@ Route::middleware('api')->group(function () {
     Route::delete('/achievements/{id}', [AchievementController::class, 'destroy']);
 });
 
-// Protected APIs (Admin only - require auth)
+
+// PROTECTED ROUTES (Admin only - require auth)
 Route::middleware('auth:sanctum')->group(function () {
     // Add registration stats route for admin only
     Route::get('/registration-stats', [RegisterController::class, 'stats'])->middleware('admin');
@@ -194,4 +197,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/status', [FilePrintingController::class, 'updateStatus']);
         Route::delete('/{id}', [FilePrintingController::class, 'destroy']);
     });
+
+    Route::get('/feedback', [FeedbackController::class, 'index']);
+    Route::get('/feedback/stats', [FeedbackController::class, 'stats']);
 });
