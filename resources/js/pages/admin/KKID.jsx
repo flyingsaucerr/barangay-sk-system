@@ -608,8 +608,6 @@ const KKIDCard = ({ profile, side = 'front' }) => {
   );
 };
 
-
-// Print-optimized version for download - Matching the optimized KKIDCard spacing
 const PrintKKIDCard = ({ profile, side = 'front' }) => {
   const cardRef = useRef(null)
   if (!profile) return null;
@@ -1187,12 +1185,14 @@ const AdminKKID = () => {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [showCardBack, setShowCardBack] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const photoInputRef = useRef(null);
-  const idCardFrontRef = useRef(null);
-  const idCardBackRef = useRef(null);
   const [fileSizeError, setFileSizeError] = useState(null);
   const [fileSize, setFileSize] = useState(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDateFilter, setExportDateFilter] = useState('all');
+  const [exportStatusFilter, setExportStatusFilter] = useState('all');
+  const [exporting, setExporting] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [statistics, setStatistics] = useState({
     total: 0,
     approved: 0,
@@ -1238,95 +1238,99 @@ const AdminKKID = () => {
 
   const [formData, setFormData] = useState(initialFormData);
 
-  const fetchProfiles = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('authToken');
-      
-      let url = '/api/kkid-profiles';
-      const params = new URLSearchParams();
-      
-      if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      
-      if (params.toString()) url += `?${params.toString()}`;
-      
-      const headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(url, {
-        headers: headers,
-        credentials: 'include'
-      });
-      
-      const responseText = await response.text();
-      
-      if (!responseText.trim()) {
-        throw new Error('Empty response from server');
-      }
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        throw new Error(`Invalid JSON response: ${parseError.message}`);
-      }
-      
-      if (response.ok) {
-        if (data.success) {
-          setProfiles(data.data?.data || data.data || []);
-          setStatistics(data.statistics || {
-            total: data.data?.total || data.data?.length || 0,
-            approved: 0,
-            pending: 0,
-            rejected: 0
-          });
-        } else {
-          let errorMessage = data.message || 'Failed to fetch profiles';
-          if (data.error) errorMessage += `: ${data.error}`;
-          if (data.errors) errorMessage += ' - ' + Object.values(data.errors).flat().join(', ');
-          toast.error(errorMessage);
-        }
-      } else {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        if (data && data.message) errorMessage = data.message;
-        if (data && data.error) errorMessage += `: ${data.error}`;
-        toast.error(errorMessage);
-        
-        if (response.status === 401) {
-          toast.error('Session expired. Please login again.');
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('userName');
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching profiles:', error);
-      
-      if (error.message.includes('Failed to fetch')) {
-        toast.error('Network error. Please check your internet connection and server status.');
-      } else if (error.message.includes('Empty response')) {
-        toast.error('Server returned empty response. Check if API endpoint is working.');
-      } else if (error.message.includes('Invalid JSON')) {
-        toast.error('Server returned invalid data. Please check server logs.');
-      } else {
-        toast.error('Failed to load KKID profiles. Please try again.');
-      }
-      
-      setProfiles([]);
-      setStatistics({ total: 0, approved: 0, pending: 0, rejected: 0 });
-    } finally {
-      setLoading(false);
+const fetchProfiles = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('authToken');
+    
+    console.log('Fetching profiles with token:', token ? 'Token exists' : 'No token');
+    
+    let url = '/api/admin/kkid-profiles'; // Make sure this matches your route
+    const params = new URLSearchParams();
+    
+    if (searchTerm) params.append('search', searchTerm);
+    if (statusFilter !== 'all') params.append('status', statusFilter);
+    
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    console.log('Fetching from URL:', url);
+    
+    const headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
-  };
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: headers,
+      credentials: 'include'
+    });
+    
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers.get('content-type'));
+    
+    // Check if response is HTML
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      const text = await response.text();
+      console.error('Received HTML instead of JSON:', text.substring(0, 200));
+      throw new Error('Server returned HTML instead of JSON. Possible authentication issue or incorrect URL.');
+    }
+    
+    const responseText = await response.text();
+    console.log('Response text:', responseText.substring(0, 200));
+    
+    if (!responseText.trim()) {
+      throw new Error('Empty response from server');
+    }
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      console.error('Raw response:', responseText);
+      throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
+    }
+    
+    if (response.ok) {
+      if (data.success) {
+        setProfiles(data.data || []);
+        setStatistics(data.statistics || {
+          total: 0,
+          approved: 0,
+          pending: 0,
+          rejected: 0
+        });
+      } else {
+        toast.error(data.message || 'Failed to fetch profiles');
+      }
+    } else {
+      if (response.status === 401) {
+        toast.error('Session expired. Please login again.');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userName');
+        // Redirect to login or refresh
+        window.location.href = '/login';
+      } else {
+        toast.error(`Error ${response.status}: ${data.message || 'Failed to fetch profiles'}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching profiles:', error);
+    toast.error(error.message || 'Failed to load KKID profiles');
+    setProfiles([]);
+    setStatistics({ total: 0, approved: 0, pending: 0, rejected: 0 });
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchProfiles();
@@ -1593,6 +1597,103 @@ const handlePhotoUpload = (e) => {
       toast.error('Failed to delete KKID profile');
     }
   };
+
+const handleExportCSV = async () => {
+  setExporting(true);
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    
+    if (!token) {
+      toast.error('You are not authenticated. Please login again.');
+      setExporting(false);
+      return;
+    }
+
+    console.log('Exporting with filters:', {
+      date_filter: exportDateFilter,
+      status: exportStatusFilter,
+      search: searchTerm
+    });
+
+    const response = await fetch('/api/admin/kkid-profiles/export', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        date_filter: exportDateFilter,
+        status: exportStatusFilter,
+        search: searchTerm
+      }),
+    });
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers.get('content-type'));
+
+    // Check if response is OK
+    if (!response.ok) {
+      if (response.status === 401) {
+        toast.error('Session expired. Please login again.');
+        localStorage.removeItem('authToken');
+        return;
+      }
+      
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      throw new Error(`HTTP error ${response.status}: ${errorText.substring(0, 200)}`);
+    }
+
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response:', text.substring(0, 200));
+      throw new Error('Server returned non-JSON response');
+    }
+
+    const data = await response.json();
+    console.log('Export response data:', data);
+    
+    if (data.success) {
+      // Decode base64 content
+      try {
+        const binaryString = window.atob(data.data.content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        // Create blob and download
+        const blob = new Blob([bytes], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.data.filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        toast.success(`Successfully exported ${data.data.count} KKID profiles`);
+        setShowExportModal(false);
+      } catch (decodeError) {
+        console.error('Base64 decode error:', decodeError);
+        toast.error('Error processing export data');
+      }
+    } else {
+      toast.error(data.message || 'Failed to export data');
+    }
+  } catch (error) {
+    console.error('Export error:', error);
+    toast.error(error.message || 'Failed to export KKID profiles');
+  } finally {
+    setExporting(false);
+  }
+};
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -2148,18 +2249,29 @@ const renderPhotoUpload = () => (
           </p>
         </div>
         
-        <Button 
-          onClick={() => {
-            setEditingProfile(null);
-            setShowForm(true);
-            resetForm();
-          }}
-          className="bg-green-600 hover:bg-green-700 text-white"
-          size="lg"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add KKID Profile
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowExportModal(true)}
+            variant="outline"
+            className="border-blue-300 hover:bg-blue-50"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export to CSV
+          </Button>
+          
+          <Button 
+            onClick={() => {
+              setEditingProfile(null);
+              setShowForm(true);
+              resetForm();
+            }}
+            className="bg-green-600 hover:bg-green-700 text-white"
+            size="lg"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add KKID Profile
+          </Button>
+            </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4">
@@ -2553,6 +2665,100 @@ const renderPhotoUpload = () => (
                   <Printer className="h-5 w-5 mr-2" />
                   Print Both Sides
                 </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+      )}
+                        {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-2xl font-bold">Export KKID Profiles to CSV</h2>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Date Filter */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date Range
+                </label>
+                <Select value={exportDateFilter} onValueChange={setExportDateFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="7days">Last 7 Days</SelectItem>
+                    <SelectItem value="30days">Last 30 Days</SelectItem>
+                    <SelectItem value="year">This Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status Filter
+                </label>
+                <Select value={exportStatusFilter} onValueChange={setExportStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Search Info */}
+              {searchTerm && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-700 flex items-center">
+                    <Info className="h-4 w-4 mr-2 flex-shrink-0" />
+                    Export will include search results for "{searchTerm}"
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={handleExportCSV}
+                  disabled={exporting}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {exporting ? (
+                    <>
+                      <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Now
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  disabled={exporting}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>

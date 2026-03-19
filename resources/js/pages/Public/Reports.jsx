@@ -182,13 +182,10 @@ const MonthlyReportsPublic = () => {
             <span>Monthly Reports</span>
           </h1>
           <p className="text-muted-foreground mt-2">
-            View official barangay reports and stay informed about community activities
+            View and download official barangay reports (Word, Excel, PDF formats)
           </p>
         </div>
       </div>
-
-      {/* Page Content */}
-      <div className="container mx-auto px-4 py-12">
 
       {/* Search and Filters */}
       <div className="flex flex-col md:flex-row gap-4">
@@ -228,7 +225,7 @@ const MonthlyReportsPublic = () => {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-600 mb-1">{statistics.total_reports || 0}</div>
@@ -467,7 +464,6 @@ const MonthlyReportsPublic = () => {
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 };

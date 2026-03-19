@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\KKIDProfile;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -340,6 +341,171 @@ class KKIDProfileController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update status'
+            ], 500);
+        }
+    }
+
+    public function export(Request $request): JsonResponse
+{
+    try {
+        $query = KKIDProfile::query();
+        
+        // Apply date filter
+        if ($request->has('date_filter') && $request->date_filter !== 'all') {
+            $now = now();
+            
+            switch ($request->date_filter) {
+                case 'today':
+                    $query->whereDate('created_at', $now->toDateString());
+                    break;
+                case '7days':
+                    $query->whereDate('created_at', '>=', $now->subDays(7)->toDateString());
+                    break;
+                case '30days':
+                    $query->whereDate('created_at', '>=', $now->subDays(30)->toDateString());
+                    break;
+                case 'year':
+                    $query->whereYear('created_at', $now->year);
+                    break;
+                }
+            }
+            
+            // Apply status filter if provided
+            if ($request->has('status') && $request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+            
+            // Apply search filter if provided
+            if ($request->has('search') && !empty($request->search)) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('full_name', 'like', "%{$search}%")
+                      ->orWhere('kkid_number', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                      ->orWhere('contact_number', 'like', "%{$search}%");
+                });
+            }
+            
+            $profiles = $query->orderBy('created_at', 'desc')->get();
+            
+            // Create temp file
+            $tempFile = tempnam(sys_get_temp_dir(), 'export_') . '.csv';
+            $handle = fopen($tempFile, 'w');
+            
+            // Add UTF-8 BOM for Excel compatibility
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // Add filter information header
+            $filterInfo = match($request->date_filter) {
+                'today' => 'Today\'s Records',
+                '7days' => 'Last 7 Days Records',
+                '30days' => 'Last 30 Days Records',
+                'year' => 'This Year\'s Records',
+                default => 'All Time Records'
+            };
+            
+            if ($request->has('status') && $request->status !== 'all') {
+                $filterInfo .= ' - Status: ' . ucfirst($request->status);
+            }
+            
+            fputcsv($handle, ['KKID PROFILES EXPORT REPORT']);
+            fputcsv($handle, ['Generated: ' . now()->format('F d, Y h:i A')]);
+            fputcsv($handle, ['Filter: ' . $filterInfo]);
+            fputcsv($handle, ['Total Records: ' . $profiles->count()]);
+            fputcsv($handle, []); // Empty row for spacing
+            
+            // Add headers
+            fputcsv($handle, [
+                'ID',
+                'KKID Number',
+                'Full Name',
+                'Birthday',
+                'Age',
+                'Gender',
+                'Civil Status',
+                'Contact Number',
+                'Email',
+                'Address',
+                'Youth Organization',
+                'Facebook Account',
+                'Registered Voter',
+                'Precinct Number',
+                'Status',
+                'Created Date'
+            ]);
+            
+            // Add data rows
+            foreach ($profiles as $profile) {
+                // Calculate age properly - FIXED
+                $age = 'N/A';
+                if ($profile->birthday) {
+                    $birthDate = \Carbon\Carbon::parse($profile->birthday);
+                    $today = \Carbon\Carbon::now();
+                    
+                    // Calculate age ensuring it's not negative
+                    if ($birthDate->lte($today)) { // Check if birth date is not in the future
+                        $age = $birthDate->diffInYears($today);
+                        // Ensure age is a positive integer
+                        $age = max(0, (int)$age);
+                    } else {
+                        $age = 0; // Birth date in future, set to 0
+                    }
+                }
+                
+                fputcsv($handle, [
+                    $profile->id,
+                    $profile->kkid_number ?? 'N/A',
+                    $profile->full_name ?? 'N/A',
+                    $profile->birthday ? date('M d, Y', strtotime($profile->birthday)) : 'N/A',
+                    $age, // Now properly formatted as integer
+                    $profile->gender ?? 'N/A',
+                    $profile->civil_status ?? 'N/A',
+                    $profile->contact_number ?? 'N/A',
+                    $profile->email ?? 'N/A',
+                    $profile->address ?? 'N/A',
+                    $profile->youth_organization ?? 'N/A',
+                    $profile->facebook_account ?? 'N/A',
+                    $profile->is_voter ? 'Yes' : 'No',
+                    $profile->precinct_number ?? 'N/A',
+                    ucfirst($profile->status ?? 'pending'),
+                    $profile->created_at ? date('M d, Y', strtotime($profile->created_at)) : 'N/A'
+                ]);
+            }
+            
+            fclose($handle);
+            
+            // Read file content
+            $fileContent = file_get_contents($tempFile);
+            
+            // Delete temp file
+            unlink($tempFile);
+            
+            // Generate filename
+            $filterName = match($request->date_filter) {
+                'today' => 'today',
+                '7days' => 'last_7_days',
+                '30days' => 'last_30_days',
+                'year' => 'this_year',
+                default => 'all_time'
+            };
+            
+            $filename = "kkid_profiles_{$filterName}_" . date('Y-m-d_His') . '.csv';
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'filename' => $filename,
+                    'content' => base64_encode($fileContent),
+                    'count' => $profiles->count(),
+                    'filter' => $filterInfo
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Export failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export data: ' . $e->getMessage()
             ], 500);
         }
     }

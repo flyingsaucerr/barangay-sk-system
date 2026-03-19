@@ -16,6 +16,7 @@ use App\Http\Controllers\FilePrintingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\KagawadController;
 
 Route::options('/{any}', function () {
     return response('', 200)
@@ -116,7 +117,6 @@ Route::middleware('api')->group(function () {
 
 // PROTECTED ROUTES (Admin only - require auth)
 Route::middleware('auth:sanctum')->group(function () {
-    // Add registration stats route for admin only
     Route::get('/registration-stats', [RegisterController::class, 'stats'])->middleware('admin');
     
     Route::post('/kagawad', [KagawadController::class, 'store']);
@@ -126,23 +126,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/kagawad/{kagawadId}/activities', [KagawadController::class, 'addActivity']);
     Route::delete('/kagawad/activities/{id}', [KagawadController::class, 'deleteActivity']);
 
-    // Announcements Admin
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update']);
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy']);
     Route::get('/announcements/debug-image/{id}', [AnnouncementController::class, 'debugImage'])->middleware('auth:sanctum');
     
-    // Facilities Admin
     Route::post('/facilities', [FacilityController::class, 'store']);
     Route::put('/facilities/{id}', [FacilityController::class, 'update']);
     Route::delete('/facilities/{id}', [FacilityController::class, 'destroy']);
 
-    // Projects Admin
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::put('/projects/{id}', [ProjectController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
 
-    // Requests Management (Admin only)
     Route::prefix('admin')->group(function () {
         Route::get('/staff', [RequestController::class, 'getStaffUsers']);
         Route::get('/requests', [RequestController::class, 'adminIndex']);
@@ -150,10 +146,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/requests/{id}', [RequestController::class, 'adminShow']);
         Route::put('/requests/{id}/status', [RequestController::class, 'updateStatus']);
         Route::delete('/requests/{id}', [RequestController::class, 'destroy']);
-        Route::get('/staff', [RequestController::class, 'getStaffUsers']);
     });
 
-    // Accomplishments Admin
     Route::get('/admin/accomplishments', [AccomplishmentController::class, 'index']);
     Route::post('/accomplishments', [AccomplishmentController::class, 'store']);
     Route::put('/accomplishments/{id}', [AccomplishmentController::class, 'update']);
@@ -161,12 +155,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/accomplishments/{id}/publish', [AccomplishmentController::class, 'publish']);
     Route::post('/accomplishments/{id}/unpublish', [AccomplishmentController::class, 'unpublish']);
 
-    // Disclosure Board Admin
     Route::post('/disclosures', [DisclosureController::class, 'store']);
     Route::put('/disclosures/{disclosure}', [DisclosureController::class, 'update']);
     Route::delete('/disclosures/{disclosure}', [DisclosureController::class, 'destroy']);
 
-    // Monthly Reports Admin APIs - REMOVED extra /api prefix
     Route::prefix('admin')->group(function () {
         Route::get('/monthly-reports', [MonthlyReportController::class, 'adminIndex']);
         Route::get('/monthly-reports/{id}', [MonthlyReportController::class, 'adminShow']);
@@ -178,18 +170,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/monthly-reports-statistics', [MonthlyReportController::class, 'adminStatistics']);
     });
 
-    // KKID Profiles 
+    Route::prefix('admin')->group(function () {
     Route::prefix('kkid-profiles')->group(function () {
+        // PUT THE EXPORT ROUTE FIRST (before any {id} routes)
+        Route::post('/export', [KKIDProfileController::class, 'export']);
+        
+        // Then the other routes
         Route::get('/', [KKIDProfileController::class, 'index']);
         Route::post('/', [KKIDProfileController::class, 'store']);
         Route::get('/{id}', [KKIDProfileController::class, 'show']);
-        Route::put('/{id}', [KKIDProfileController::class, 'update']);
+        Route::post('/{id}', [KKIDProfileController::class, 'update']);
         Route::delete('/{id}', [KKIDProfileController::class, 'destroy']);
         Route::patch('/{id}/status', [KKIDProfileController::class, 'updateStatus']);
-        Route::get('/kkid-profiles/{id}/generate-id', [KKIDController::class, 'generateID']);
+        Route::get('/{id}/generate-id', [KKIDProfileController::class, 'generateID']);
+        });
     });
 
-    // File Printing
     Route::prefix('admin/printing')->group(function () {
         Route::get('/', [FilePrintingController::class, 'index']);
         Route::get('/{id}', [FilePrintingController::class, 'show']);
