@@ -13,6 +13,10 @@ class MonthlyReport extends Model
         'title',
         'description',
         'content',
+        'file_path',
+        'file_name',
+        'file_type',
+        'file_size',
         'month',
         'year',
         'category',
@@ -24,11 +28,14 @@ class MonthlyReport extends Model
 
     protected $casts = [
         'tags' => 'array',
-        'upload_date' => 'date',
-        'year' => 'integer',
+        'upload_date' => 'datetime',
+        'file_size' => 'integer'
     ];
 
-    protected $attributes = [
-        'status' => 'published',
-    ];
+    protected $appends = ['has_file'];
+
+    public function getHasFileAttribute()
+    {
+        return !is_null($this->file_path);
+    }
 }

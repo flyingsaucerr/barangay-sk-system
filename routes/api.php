@@ -89,9 +89,10 @@ Route::middleware('api')->group(function () {
     Route::get('/disclosures', [DisclosureController::class, 'index']);
     Route::get('/disclosures/{disclosure}', [DisclosureController::class, 'show']);
 
-    // Monthly Reports Public APIs
+    // Monthly Reports Public APIs - REMOVED extra /api prefix
     Route::get('/monthly-reports', [MonthlyReportController::class, 'publicIndex']);
     Route::get('/monthly-reports/{id}', [MonthlyReportController::class, 'publicShow']);
+    Route::get('/monthly-reports/{id}/download', [MonthlyReportController::class, 'publicDownload']);
     Route::get('/monthly-reports-filters', [MonthlyReportController::class, 'publicFilters']);
     Route::get('/monthly-reports-statistics', [MonthlyReportController::class, 'publicStatistics']);
 
@@ -165,15 +166,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/disclosures/{disclosure}', [DisclosureController::class, 'update']);
     Route::delete('/disclosures/{disclosure}', [DisclosureController::class, 'destroy']);
 
-    // Monthly Reports Admin APIs
+    // Monthly Reports Admin APIs - REMOVED extra /api prefix
     Route::prefix('admin')->group(function () {
         Route::get('/monthly-reports', [MonthlyReportController::class, 'adminIndex']);
+        Route::get('/monthly-reports/{id}', [MonthlyReportController::class, 'adminShow']);
+        Route::get('/monthly-reports/{id}/download', [MonthlyReportController::class, 'adminDownload']);
+        Route::post('/monthly-reports', [MonthlyReportController::class, 'store']);
+        Route::post('/monthly-reports/{id}', [MonthlyReportController::class, 'update']);
+        Route::delete('/monthly-reports/{id}', [MonthlyReportController::class, 'destroy']);
         Route::get('/monthly-reports-filters', [MonthlyReportController::class, 'adminFilters']);
         Route::get('/monthly-reports-statistics', [MonthlyReportController::class, 'adminStatistics']);
-        Route::post('/monthly-reports', [MonthlyReportController::class, 'store']);
-        Route::get('/monthly-reports/{id}', [MonthlyReportController::class, 'adminShow']);
-        Route::put('/monthly-reports/{id}', [MonthlyReportController::class, 'update']);
-        Route::delete('/monthly-reports/{id}', [MonthlyReportController::class, 'destroy']);
     });
 
     // KKID Profiles 

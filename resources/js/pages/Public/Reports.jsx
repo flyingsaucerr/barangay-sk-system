@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Search, Calendar, User, Eye, X } from 'lucide-react';
+import { FileText, Search, Calendar, User, Eye, X, Download, File, AlertCircle } from 'lucide-react';
 
 const MonthlyReportsPublic = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,6 +22,7 @@ const MonthlyReportsPublic = () => {
     years_covered: 0
   });
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const getCategoryColor = (category) => {
     const colors = {
@@ -36,6 +37,25 @@ const MonthlyReportsPublic = () => {
       'General': 'bg-gray-100 text-gray-800 border-gray-200'
     };
     return colors[category] || colors['General'];
+  };
+
+  const getFileIcon = (fileType) => {
+    if (fileType?.includes('word') || fileType?.includes('document')) {
+      return <FileText className="h-5 w-5 text-blue-600" />;
+    } else if (fileType?.includes('excel') || fileType?.includes('sheet')) {
+      return <FileText className="h-5 w-5 text-green-600" />;
+    } else if (fileType?.includes('pdf')) {
+      return <FileText className="h-5 w-5 text-red-600" />;
+    }
+    return <File className="h-5 w-5 text-gray-600" />;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return 'Unknown size';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   // Fetch reports
@@ -59,10 +79,10 @@ const MonthlyReportsPublic = () => {
         setReports(data.data);
       } else {
         console.error('API returned error:', data);
+        setReports([]);
       }
     } catch (error) {
       console.error('Error fetching reports:', error);
-      // Set empty array if API fails
       setReports([]);
     } finally {
       setLoading(false);
@@ -85,16 +105,15 @@ const MonthlyReportsPublic = () => {
       const statsData = await statsRes.json();
 
       if (filtersData.success) {
-        setAvailableYears(filtersData.data.years);
-        setAvailableMonths(filtersData.data.months);
+        setAvailableYears(filtersData.data.years || []);
+        setAvailableMonths(filtersData.data.months || []);
       }
 
       if (statsData.success) {
-        setStatistics(statsData.data);
+        setStatistics(statsData.data || {});
       }
     } catch (error) {
       console.error('Error fetching filters and stats:', error);
-      // Set default values if API fails
       setAvailableYears([]);
       setAvailableMonths([]);
     }
@@ -122,24 +141,48 @@ const MonthlyReportsPublic = () => {
     }
   };
 
+  const handleDownloadFile = async (report) => {
+    setDownloading(true);
+    try {
+      const response = await fetch(`/api/monthly-reports/${report.id}/download`);
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = report.file_name || `report-${report.id}.${report.file_type?.split('/').pop() || 'pdf'}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Error downloading file. Please try again later.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   useEffect(() => {
     fetchReports();
     fetchFiltersAndStats();
   }, [searchTerm, yearFilter, monthFilter]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50">
-
-      {/* Header Section */}
-      <div className="bg-blue-600 text-white py-12">
-        <div className="container mx-auto px-4 text-center">
-          <div className="flex justify-center mb-4">
-            <FileText className="h-12 w-12 text-white" /> {/* Icon */}
-          </div>
-          <h1 className="text-4xl font-bold mb-4">Monthly Reports</h1>
-          <p className="text-xl opacity-90 max-w-2xl mx-auto">
-            View official barangay reports and stay informed about community activities. 
-            Stay updated with accurate and timely information for transparency and accountability.
+    <div className="container mx-auto px-4 py-8 space-y-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center space-x-2">
+            <FileText className="h-8 w-8 text-primary" />
+            <span>Monthly Reports</span>
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            View official barangay reports and stay informed about community activities
           </p>
         </div>
       </div>
@@ -152,7 +195,7 @@ const MonthlyReportsPublic = () => {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
-            placeholder="Search reports by title, description, or tags..."
+            placeholder="Search reports by description or tags..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -166,7 +209,7 @@ const MonthlyReportsPublic = () => {
           <SelectContent>
             <SelectItem value="all">All Years</SelectItem>
             {availableYears.map(year => (
-              <SelectItem key={year} value={year}>{year}</SelectItem>
+              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -188,14 +231,14 @@ const MonthlyReportsPublic = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600 mb-1">{statistics.total_reports}</div>
+            <div className="text-2xl font-bold text-blue-600 mb-1">{statistics.total_reports || 0}</div>
             <div className="text-sm text-muted-foreground">Available Reports</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-green-600 mb-1">
-              {statistics.this_year_reports}
+              {statistics.this_year_reports || 0}
             </div>
             <div className="text-sm text-muted-foreground">This Year</div>
           </CardContent>
@@ -203,7 +246,7 @@ const MonthlyReportsPublic = () => {
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-purple-600 mb-1">
-              {statistics.categories_count}
+              {statistics.categories_count || 0}
             </div>
             <div className="text-sm text-muted-foreground">Categories</div>
           </CardContent>
@@ -211,7 +254,7 @@ const MonthlyReportsPublic = () => {
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-orange-600 mb-1">
-              {statistics.years_covered}
+              {statistics.years_covered || 0}
             </div>
             <div className="text-sm text-muted-foreground">Years Covered</div>
           </CardContent>
@@ -231,7 +274,7 @@ const MonthlyReportsPublic = () => {
               <CardHeader>
                 <div className="space-y-1">
                   <CardTitle className="text-lg group-hover:text-primary transition-colors line-clamp-2">
-                    {report.title}
+                    {report.description || 'Untitled Report'}
                   </CardTitle>
                   <Badge className={getCategoryColor(report.category)}>
                     {report.category}
@@ -242,7 +285,7 @@ const MonthlyReportsPublic = () => {
                   <Calendar className="h-4 w-4" />
                   <span>{report.month} {report.year}</span>
                   <span>•</span>
-                  <span>{report.author}</span>
+                  <span>{report.author || 'Barangay'}</span>
                 </CardDescription>
               </CardHeader>
               
@@ -251,11 +294,28 @@ const MonthlyReportsPublic = () => {
                   {report.description}
                 </p>
                 
-                {/* Content Preview */}
-                <div className="p-3 bg-gray-50 rounded-lg border">
-                  <p className="text-xs text-gray-600 line-clamp-3 font-mono">
-                    {report.content?.substring(0, 150)}...
-                  </p>
+                {/* File Info */}
+                <div className="p-3 bg-gray-50 rounded-lg border flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    {getFileIcon(report.file_type)}
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 truncate max-w-[150px]">
+                        {report.file_name || 'Document'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {report.file_size ? formatFileSize(report.file_size) : 'Size unknown'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDownloadFile(report)}
+                    disabled={downloading}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
                 </div>
 
                 <div className="flex flex-wrap gap-1">
@@ -272,7 +332,7 @@ const MonthlyReportsPublic = () => {
                   onClick={() => handleViewReport(report)}
                 >
                   <Eye className="mr-2 h-4 w-4" />
-                  View Full Report
+                  View Details
                 </Button>
               </CardContent>
             </Card>
@@ -295,9 +355,9 @@ const MonthlyReportsPublic = () => {
       {/* Report View Modal */}
       {showReportView && selectedReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-2xl font-bold text-gray-900">{selectedReport.title}</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Report Details</h2>
               <button
                 onClick={() => setShowReportView(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -315,11 +375,11 @@ const MonthlyReportsPublic = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  <span>{selectedReport.author}</span>
+                  <span>{selectedReport.author || 'Barangay'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  <span>Published: {new Date(selectedReport.upload_date).toLocaleDateString()}</span>
+                  <span>Published: {selectedReport.upload_date ? new Date(selectedReport.upload_date).toLocaleDateString() : 'Date not available'}</span>
                 </div>
                 <Badge className={getCategoryColor(selectedReport.category)}>
                   {selectedReport.category}
@@ -344,32 +404,44 @@ const MonthlyReportsPublic = () => {
                 </div>
               </div>
 
-              {/* Report Content */}
+              {/* File Information */}
               <div className="border-t pt-6">
-                <h3 className="text-xl font-semibold mb-4">Report Content</h3>
-                <div className="bg-gray-50 rounded-lg p-6 border">
-                  <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 leading-relaxed">
-                    {selectedReport.content}
-                  </pre>
+                <h3 className="text-xl font-semibold mb-4">Attached File</h3>
+                <div className="bg-gray-50 rounded-lg p-6 border flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    {getFileIcon(selectedReport.file_type)}
+                    <div>
+                      <p className="text-lg font-medium text-gray-900">
+                        {selectedReport.file_name || 'Document'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Type: {selectedReport.file_type || 'Unknown'} • Size: {selectedReport.file_size ? formatFileSize(selectedReport.file_size) : 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handleDownloadFile(selectedReport)}
+                    disabled={downloading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {downloading ? 'Downloading...' : 'Download'}
+                  </Button>
                 </div>
               </div>
 
               {/* Security Notice */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <FileText className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <div className="ml-3">
+                <div className="flex items-start">
+                  <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
                     <h3 className="text-sm font-medium text-blue-800">
-                      Report Security
+                      Official Document
                     </h3>
-                    <div className="mt-1 text-sm text-blue-700">
-                      <p>
-                        This report is for viewing purposes only. Downloading, copying, or distributing 
-                        this content is restricted to maintain data security and integrity.
-                      </p>
-                    </div>
+                    <p className="mt-1 text-sm text-blue-700">
+                      This is an official barangay document. Please ensure you have the proper 
+                      authorization before sharing or distributing this document.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -380,7 +452,15 @@ const MonthlyReportsPublic = () => {
                   onClick={() => setShowReportView(false)}
                   className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
                 >
-                  Close Report
+                  Close
+                </button>
+                <button
+                  onClick={() => handleDownloadFile(selectedReport)}
+                  disabled={downloading}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors disabled:bg-gray-400"
+                >
+                  <Download className="mr-2 h-4 w-4 inline" />
+                  {downloading ? 'Downloading...' : 'Download Document'}
                 </button>
               </div>
             </div>
