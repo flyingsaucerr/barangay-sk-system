@@ -1238,99 +1238,71 @@ const AdminKKID = () => {
 
   const [formData, setFormData] = useState(initialFormData);
 
-const fetchProfiles = async () => {
-  try {
-    setLoading(true);
-    const token = localStorage.getItem('authToken');
-    
-    console.log('Fetching profiles with token:', token ? 'Token exists' : 'No token');
-    
-    let url = '/api/admin/kkid-profiles'; // Make sure this matches your route
-    const params = new URLSearchParams();
-    
-    if (searchTerm) params.append('search', searchTerm);
-    if (statusFilter !== 'all') params.append('status', statusFilter);
-    
-    if (params.toString()) url += `?${params.toString()}`;
-    
-    console.log('Fetching from URL:', url);
-    
-    const headers = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: headers,
-      credentials: 'include'
-    });
-    
-    console.log('Response status:', response.status);
-    console.log('Response headers:', response.headers.get('content-type'));
-    
-    // Check if response is HTML
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
-      const text = await response.text();
-      console.error('Received HTML instead of JSON:', text.substring(0, 200));
-      throw new Error('Server returned HTML instead of JSON. Possible authentication issue or incorrect URL.');
-    }
-    
-    const responseText = await response.text();
-    console.log('Response text:', responseText.substring(0, 200));
-    
-    if (!responseText.trim()) {
-      throw new Error('Empty response from server');
-    }
-    
-    let data;
+  const fetchProfiles = async () => {
     try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.error('Raw response:', responseText);
-      throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
-    }
-    
-    if (response.ok) {
-      if (data.success) {
-        setProfiles(data.data || []);
-        setStatistics(data.statistics || {
-          total: 0,
-          approved: 0,
-          pending: 0,
-          rejected: 0
-        });
-      } else {
-        toast.error(data.message || 'Failed to fetch profiles');
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      
+      let url = '/api/admin/kkid-profiles';
+      const params = new URLSearchParams();
+      
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
-    } else {
-      if (response.status === 401) {
-        toast.error('Session expired. Please login again.');
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userId');
-        localStorage.removeItem('userName');
-        // Redirect to login or refresh
-        window.location.href = '/login';
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers,
+        credentials: 'include'
+      });
+      
+      // Parse the response
+      const data = await response.json();
+      
+      if (response.ok) {
+        if (data.success) {
+          setProfiles(data.data || []);
+          setStatistics(data.statistics || {
+            total: 0,
+            approved: 0,
+            pending: 0,
+            rejected: 0
+          });
+        } else {
+          toast.error(data.message || 'Failed to fetch profiles');
+        }
       } else {
-        toast.error(`Error ${response.status}: ${data.message || 'Failed to fetch profiles'}`);
+        if (response.status === 401) {
+          toast.error('Session expired. Please login again.');
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userName');
+          // Redirect to login or refresh
+          window.location.href = '/login';
+        } else {
+          toast.error(`Error ${response.status}: ${data.message || 'Failed to fetch profiles'}`);
+        }
       }
+    } catch (error) {
+      console.error('Error fetching profiles:', error);
+      toast.error(error.message || 'Failed to load KKID profiles');
+      setProfiles([]);
+      setStatistics({ total: 0, approved: 0, pending: 0, rejected: 0 });
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching profiles:', error);
-    toast.error(error.message || 'Failed to load KKID profiles');
-    setProfiles([]);
-    setStatistics({ total: 0, approved: 0, pending: 0, rejected: 0 });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchProfiles();
@@ -1426,177 +1398,246 @@ const handlePhotoUpload = (e) => {
   img.src = URL.createObjectURL(file);
 };
 
-  const handleAddProfile = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
+const handleAddProfile = async (e) => {
+  e.preventDefault();
+  setSubmitting(true);
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const formDataToSend = new FormData();
     
-    try {
-      const token = localStorage.getItem('authToken');
-      const formDataToSend = new FormData();
-      
-      Object.keys(formData).forEach(key => {
-        if (key !== 'photo_url') {
-          const value = formData[key];
-          if (typeof value === 'boolean') {
-            formDataToSend.append(key, value ? '1' : '0');
-          } else {
-            formDataToSend.append(key, value || '');
-          }
-        }
-      });
-      
-      if (photoFile) {
-        formDataToSend.append('photo', photoFile);
-      }
-      
-      const response = await fetch('/api/kkid-profiles', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-        body: formDataToSend,
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        toast.success("KKID profile added successfully!");
-        setShowForm(false);
-        resetForm();
-        fetchProfiles();
-      } else {
-        if (data.errors) {
-          Object.entries(data.errors).forEach(([field, messages]) => {
-            toast.error(`${field}: ${messages[0]}`);
-          });
+    Object.keys(formData).forEach(key => {
+      if (key !== 'photo_url') {
+        const value = formData[key];
+        if (typeof value === 'boolean') {
+          formDataToSend.append(key, value ? '1' : '0');
         } else {
-          toast.error(data.message || 'Failed to add profile');
+          formDataToSend.append(key, value || '');
         }
       }
-    } catch (error) {
-      console.error('Error adding profile:', error);
-      toast.error('Failed to add KKID profile');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    
-    try {
-      const token = localStorage.getItem('authToken');
-      const formDataToSend = new FormData();
-      
-      Object.keys(formData).forEach(key => {
-        if (key !== 'photo_url') {
-          const value = formData[key];
-          if (typeof value === 'boolean') {
-            formDataToSend.append(key, value ? '1' : '0');
-          } else {
-            formDataToSend.append(key, value || '');
-          }
-        }
-      });
-      
-      if (photoFile) {
-        formDataToSend.append('photo', photoFile);
-      }
-      
-      formDataToSend.append('_method', 'PUT');
-      
-      const response = await fetch(`/api/kkid-profiles/${editingProfile.id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-        body: formDataToSend,
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        toast.success("KKID profile updated successfully!");
-        setShowForm(false);
-        setEditingProfile(null);
-        resetForm();
-        fetchProfiles();
-      } else {
-        if (data.errors) {
-          Object.entries(data.errors).forEach(([field, messages]) => {
-            toast.error(`${field}: ${messages[0]}`);
-          });
-        } else {
-          toast.error(data.message || 'Failed to update profile');
-        }
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      toast.error('Failed to update KKID profile');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleEditProfile = (profile) => {
-    setEditingProfile(profile);
-    setPhotoPreview(profile.photo_url || null);
-    setFormData({
-      full_name: profile.full_name || '',
-      address: profile.address || '',
-      birthday: profile.birthday ? profile.birthday.split('T')[0] : '',
-      gender: profile.gender || '',
-      emergency_contact_name: profile.emergency_contact_name || '',
-      emergency_contact_address: profile.emergency_contact_address || '',
-      emergency_contact_birthday: profile.emergency_contact_birthday ? profile.emergency_contact_birthday.split('T')[0] : '',
-      emergency_contact_number: profile.emergency_contact_number || '',
-      emergency_contact_relationship: profile.emergency_contact_relationship || '',
-      civil_status: profile.civil_status || '',
-      kkid_number: profile.kkid_number || generateKKIDNumber(),
-      validity_date: profile.validity_date ? profile.validity_date.split('T')[0] : getDefaultValidityDate(),
-      youth_organization: profile.youth_organization || '',
-      email: profile.email || '',
-      facebook_account: profile.facebook_account || '',
-      contact_number: profile.contact_number || '',
-      is_voter: profile.is_voter || false,
-      precinct_number: profile.precinct_number || '',
-      status: profile.status || 'pending',
-      photo_url: profile.photo_url || ''
     });
-    setShowForm(true);
-  };
-
-  const handleDeleteProfile = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this KKID profile?')) {
-      return;
+    
+    if (photoFile) {
+      formDataToSend.append('photo', photoFile);
     }
     
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/kkid-profiles/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+    const response = await fetch('/api/admin/kkid-profiles', { // Changed URL
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      body: formDataToSend,
+    });
 
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        toast.success("KKID profile deleted successfully!");
-        fetchProfiles();
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      toast.success("KKID profile added successfully!");
+      setShowForm(false);
+      resetForm();
+      fetchProfiles();
+    } else {
+      if (data.errors) {
+        Object.entries(data.errors).forEach(([field, messages]) => {
+          toast.error(`${field}: ${messages[0]}`);
+        });
       } else {
-        toast.error(data.message || 'Failed to delete profile');
+        toast.error(data.message || 'Failed to add profile');
       }
-    } catch (error) {
-      console.error('Error deleting profile:', error);
-      toast.error('Failed to delete KKID profile');
     }
-  };
+  } catch (error) {
+    console.error('Error adding profile:', error);
+    toast.error('Failed to add KKID profile');
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+const handleUpdateProfile = async (e) => {
+  e.preventDefault(); // This MUST be the first line
+  console.log('Update function called');
+  
+  if (!editingProfile) {
+    console.log('No editingProfile found');
+    return;
+  }
+  
+  setSubmitting(true);
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const formDataToSend = new FormData();
+    
+    Object.keys(formData).forEach(key => {
+      if (key !== 'photo_url') {
+        const value = formData[key];
+        if (typeof value === 'boolean') {
+          formDataToSend.append(key, value ? '1' : '0');
+        } else {
+          formDataToSend.append(key, value || '');
+        }
+      }
+    });
+    
+    if (photoFile) {
+      formDataToSend.append('photo', photoFile);
+    }
+    
+    console.log('Sending update to:', `/api/admin/kkid-profiles/${editingProfile.id}`);
+    
+    const response = await fetch(`/api/admin/kkid-profiles/${editingProfile.id}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      body: formDataToSend,
+    });
+
+    const data = await response.json();
+    console.log('Update response:', data);
+    
+    if (response.ok && data.success) {
+      toast.success("KKID profile updated successfully!");
+      setShowForm(false);
+      setEditingProfile(null);
+      resetForm();
+      fetchProfiles(); // This will refresh the list
+    } else {
+      if (data.errors) {
+        Object.entries(data.errors).forEach(([field, messages]) => {
+          toast.error(`${field}: ${messages[0]}`);
+        });
+      } else {
+        toast.error(data.message || 'Failed to update profile');
+      }
+    }
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    toast.error('Failed to update KKID profile');
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+const handleDeleteProfile = async (id) => {
+  if (!window.confirm('Are you sure you want to delete this KKID profile?')) {
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`/api/admin/kkid-profiles/${id}`, { // Changed URL
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      toast.success("KKID profile deleted successfully!");
+      fetchProfiles();
+    } else {
+      toast.error(data.message || 'Failed to delete profile');
+    }
+  } catch (error) {
+    console.error('Error deleting profile:', error);
+    toast.error('Failed to delete KKID profile');
+  }
+};
+
+const handleEditProfile = (profile) => {
+  setEditingProfile(profile);
+  setPhotoPreview(profile.photo_url || null);
+  setFormData({
+    full_name: profile.full_name || '',
+    address: profile.address || '',
+    birthday: profile.birthday ? profile.birthday.split('T')[0] : '',
+    gender: profile.gender || '',
+    emergency_contact_name: profile.emergency_contact_name || '',
+    emergency_contact_address: profile.emergency_contact_address || '',
+    emergency_contact_birthday: profile.emergency_contact_birthday ? profile.emergency_contact_birthday.split('T')[0] : '',
+    emergency_contact_number: profile.emergency_contact_number || '',
+    emergency_contact_relationship: profile.emergency_contact_relationship || '',
+    civil_status: profile.civil_status || '',
+    kkid_number: profile.kkid_number || generateKKIDNumber(),
+    validity_date: profile.validity_date ? profile.validity_date.split('T')[0] : getDefaultValidityDate(),
+    youth_organization: profile.youth_organization || '',
+    email: profile.email || '',
+    facebook_account: profile.facebook_account || '',
+    contact_number: profile.contact_number || '',
+    is_voter: profile.is_voter || false,
+    precinct_number: profile.precinct_number || '',
+    status: profile.status || 'pending',
+    photo_url: profile.photo_url || ''
+  });
+  setShowForm(true);
+};
+
+const handleStatusUpdate = async (id, newStatus) => {
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`/api/admin/kkid-profiles/${id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ status: newStatus }),
+    });
+
+    const data = await response.json();
+    console.log('Status update response:', data);
+    
+    if (response.ok && data.success) {
+      toast.success(`Profile status updated to ${newStatus}`);
+      fetchProfiles(); // Refresh the list
+      if (selectedProfile) {
+        setSelectedProfile(data.data); // Update the selected profile
+      }
+    } else {
+      toast.error(data.message || 'Failed to update status');
+    }
+  } catch (error) {
+    console.error('Error updating status:', error);
+    toast.error('Failed to update profile status');
+  }
+};
+
+const handleStatusChange = async (id, newStatus) => {
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`/api/admin/kkid-profiles/${id}/status`, { // Changed URL
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ status: newStatus }),
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      toast.success(`Profile status updated to ${newStatus}`);
+      fetchProfiles();
+      if (selectedProfile) {
+        setSelectedProfile(data.data);
+      }
+    } else {
+      toast.error(data.message || 'Failed to update status');
+    }
+  } catch (error) {
+    console.error('Error updating status:', error);
+    toast.error('Failed to update profile status');
+  }
+};
 
 const handleExportCSV = async () => {
   setExporting(true);
@@ -1710,36 +1751,6 @@ const handleExportCSV = async () => {
     });
     setPhotoPreview(null);
     setPhotoFile(null);
-  };
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/kkid-profiles/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        toast.success(`Profile status updated to ${newStatus}`);
-        fetchProfiles();
-        if (selectedProfile) {
-          setSelectedProfile(data.data);
-        }
-      } else {
-        toast.error(data.message || 'Failed to update status');
-      }
-    } catch (error) {
-      console.error('Error updating status:', error);
-      toast.error('Failed to update profile status');
-    }
   };
 
   const handlePrintBothSides = async () => {

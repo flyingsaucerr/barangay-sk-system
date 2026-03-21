@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, Search, Calendar, Plus, Edit, Trash2, X, User, Eye, Download, File } from 'lucide-react';
 
@@ -374,8 +375,12 @@ const fetchReports = async () => {
 
   const handleUpdateReport = async (e) => {
   e.preventDefault();
-  if (!editingReport) return;
+  if (!editingReport) {
+    console.log('No editingReport found');
+    return;
+  }
 
+  console.log('Updating report with ID:', editingReport.id);
   setUploading(true);
   setUploadProgress(0);
 
@@ -393,53 +398,43 @@ const fetchReports = async () => {
   }
 
   try {
-    const xhr = new XMLHttpRequest();
-    
-    xhr.upload.addEventListener('progress', (event) => {
-      if (event.lengthComputable) {
-        const percentComplete = (event.loaded / event.total) * 100;
-        setUploadProgress(Math.round(percentComplete));
-      }
-    });
-
-    const promise = new Promise((resolve, reject) => {
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            resolve(data);
-          } catch (e) {
-            reject(new Error('Invalid response format'));
-          }
-        } else {
-          reject(new Error(`Update failed with status ${xhr.status}`));
-        }
-      };
-      xhr.onerror = () => reject(new Error('Network error'));
-    });
-
-    xhr.open('POST', API.ADMIN_UPDATE(editingReport.id)); // Using POST with _method=PUT
-    
     const token = localStorage.getItem('authToken');
-    if (token) {
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    }
     
-    xhr.send(formDataToSend);
+    const url = API.ADMIN_UPDATE(editingReport.id);
+    console.log('Sending to URL:', url);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      body: formDataToSend,
+    });
 
-    const data = await promise;
+    console.log('Response status:', response.status);
     
-    if (data.success) {
+    const data = await response.json();
+    console.log('Response data:', data);
+    
+    if (response.ok && data.success) {
       setReports(prev => prev.map(r => r.id === editingReport.id ? data.data : r));
       setShowUploadForm(false);
       setEditingReport(null);
       resetForm();
+      toast.success('Report updated successfully!');
     } else {
-      alert(data.message || 'Error updating report');
+      if (data.errors) {
+        Object.entries(data.errors).forEach(([field, messages]) => {
+          toast.error(`${field}: ${messages[0]}`);
+        });
+      } else {
+        toast.error(data.message || 'Error updating report');
+      }
     }
   } catch (error) {
     console.error('Error updating report:', error);
-    alert(error.message || 'Error updating report');
+    toast.error(error.message || 'Error updating report');
   } finally {
     setUploading(false);
     setUploadProgress(0);

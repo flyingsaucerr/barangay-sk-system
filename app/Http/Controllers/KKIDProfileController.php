@@ -306,44 +306,47 @@ class KKIDProfileController extends Controller
      * Update profile status
      */
     public function updateStatus(Request $request, $id)
-    {
-        try {
-            $profile = KKIDProfile::find($id);
-            
-            if (!$profile) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Profile not found'
-                ], 404);
-            }
-            
-            $request->validate([
-                'status' => 'required|in:pending,approved,rejected'
-            ]);
-
-            $status = $request->status;
-            $updateData = ['status' => $status];
-            
-            if ($status === 'approved' && !$profile->approved_date) {
-                $updateData['approved_date'] = now()->toDateString();
-            }
-
-            $profile->update($updateData);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Profile status updated successfully',
-                'data' => $profile
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('KKID Profile updateStatus error: ' . $e->getMessage());
+{
+    try {
+        $profile = KKIDProfile::find($id);
+        
+        if (!$profile) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update status'
-            ], 500);
+                'message' => 'Profile not found'
+            ], 404);
         }
+        
+        $request->validate([
+            'status' => 'required|in:pending,approved,rejected'
+        ]);
+
+        $status = $request->status;
+        $updateData = ['status' => $status];
+        
+        if ($status === 'approved' && !$profile->approved_date) {
+            $updateData['approved_date'] = now()->toDateString();
+        }
+
+        $profile->update($updateData);
+        
+        // Refresh the profile to get updated data
+        $profile->refresh();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile status updated successfully',
+            'data' => $profile  // Return the updated profile
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('KKID Profile updateStatus error: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to update status'
+        ], 500);
     }
+}
 
     public function export(Request $request): JsonResponse
 {

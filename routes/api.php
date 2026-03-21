@@ -90,7 +90,7 @@ Route::middleware('api')->group(function () {
     Route::get('/disclosures', [DisclosureController::class, 'index']);
     Route::get('/disclosures/{disclosure}', [DisclosureController::class, 'show']);
 
-    // Monthly Reports Public APIs - REMOVED extra /api prefix
+    // Monthly Reports Public APIs
     Route::get('/monthly-reports', [MonthlyReportController::class, 'publicIndex']);
     Route::get('/monthly-reports/{id}', [MonthlyReportController::class, 'publicShow']);
     Route::get('/monthly-reports/{id}/download', [MonthlyReportController::class, 'publicDownload']);
@@ -113,7 +113,6 @@ Route::middleware('api')->group(function () {
     Route::put('/achievements/{id}', [AchievementController::class, 'update']);
     Route::delete('/achievements/{id}', [AchievementController::class, 'destroy']);
 });
-
 
 // PROTECTED ROUTES (Admin only - require auth)
 Route::middleware('auth:sanctum')->group(function () {
@@ -159,33 +158,37 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/disclosures/{disclosure}', [DisclosureController::class, 'update']);
     Route::delete('/disclosures/{disclosure}', [DisclosureController::class, 'destroy']);
 
-    Route::prefix('admin')->group(function () {
-        Route::get('/monthly-reports', [MonthlyReportController::class, 'adminIndex']);
-        Route::get('/monthly-reports/{id}', [MonthlyReportController::class, 'adminShow']);
-        Route::get('/monthly-reports/{id}/download', [MonthlyReportController::class, 'adminDownload']);
-        Route::post('/monthly-reports', [MonthlyReportController::class, 'store']);
-        Route::post('/monthly-reports/{id}', [MonthlyReportController::class, 'update']);
-        Route::delete('/monthly-reports/{id}', [MonthlyReportController::class, 'destroy']);
-        Route::get('/monthly-reports-filters', [MonthlyReportController::class, 'adminFilters']);
-        Route::get('/monthly-reports-statistics', [MonthlyReportController::class, 'adminStatistics']);
-    });
+
+Route::prefix('admin')->group(function () {
+    // SPECIFIC ROUTES WITHOUT PARAMETERS FIRST
+    Route::post('/monthly-reports', [MonthlyReportController::class, 'store']);
+    Route::get('/monthly-reports-filters', [MonthlyReportController::class, 'adminFilters']);
+    Route::get('/monthly-reports-statistics', [MonthlyReportController::class, 'adminStatistics']);
+    
+    // ROUTES WITH PARAMETERS - SUPPORT BOTH PUT AND POST
+    Route::get('/monthly-reports', [MonthlyReportController::class, 'adminIndex']);
+    Route::get('/monthly-reports/{id}', [MonthlyReportController::class, 'adminShow']);
+    Route::get('/monthly-reports/{id}/download', [MonthlyReportController::class, 'adminDownload']);
+    Route::match(['PUT', 'POST'], '/monthly-reports/{id}', [MonthlyReportController::class, 'update']); // Support both
+    Route::delete('/monthly-reports/{id}', [MonthlyReportController::class, 'destroy']);
+});
 
     Route::prefix('admin')->group(function () {
-    Route::prefix('kkid-profiles')->group(function () {
-        // PUT THE EXPORT ROUTE FIRST (before any {id} routes)
-        Route::post('/export', [KKIDProfileController::class, 'export']);
-        
-        // Then the other routes
-        Route::get('/', [KKIDProfileController::class, 'index']);
-        Route::post('/', [KKIDProfileController::class, 'store']);
-        Route::get('/{id}', [KKIDProfileController::class, 'show']);
-        Route::post('/{id}', [KKIDProfileController::class, 'update']);
-        Route::delete('/{id}', [KKIDProfileController::class, 'destroy']);
-        Route::patch('/{id}/status', [KKIDProfileController::class, 'updateStatus']);
-        Route::get('/{id}/generate-id', [KKIDProfileController::class, 'generateID']);
+        Route::prefix('kkid-profiles')->group(function () {
+            Route::post('/export', [KKIDProfileController::class, 'export']);
+            Route::post('/', [KKIDProfileController::class, 'store']);
+            Route::get('/', [KKIDProfileController::class, 'index']);
+            
+            Route::get('/{id}', [KKIDProfileController::class, 'show']);
+            Route::match(['PUT', 'POST'], '/{id}', [KKIDProfileController::class, 'update']); 
+            Route::delete('/{id}', [KKIDProfileController::class, 'destroy']);
+            Route::patch('/{id}/status', [KKIDProfileController::class, 'updateStatus']);
+            Route::get('/{id}/generate-id', [KKIDProfileController::class, 'generateID']);
         });
     });
 
+
+    // FILE PRINTING ROUTES
     Route::prefix('admin/printing')->group(function () {
         Route::get('/', [FilePrintingController::class, 'index']);
         Route::get('/{id}', [FilePrintingController::class, 'show']);
