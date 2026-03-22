@@ -344,81 +344,68 @@ const AdminAccomplishments = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50">
       <div className="container mx-auto px-4 py-12">
         {/* Header Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Admin Accomplishments
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Create, edit, and manage barangay accomplishments. 
-            Accomplishments from completed projects are automatically added and synced.
-          </p>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center space-x-2">
+              <CheckCircle className="h-8 w-8 text-primary" />
+              <span>Manage Accomplishments</span>
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Create, edit, and manage barangay accomplishments
+            </p>
+          </div>
 
-          {/* Action Buttons */}
-          <div className="mt-8">
-            <Button
+          <div>
+            <Button 
               onClick={() => setShowForm(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold flex items-center gap-2 mx-auto transition-colors shadow-lg"
-              size="lg"
+              className="bg-green-600 hover:bg-green-700"
             >
-              <Plus className="h-5 w-5" />
-              Add New Accomplishment
+              <Plus className="mr-2 h-4 w-4" />
+              New Accomplishment
             </Button>
           </div>
         </div>
 
-        {/* Impact Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
-          <Card className="bg-white/80 backdrop-blur-sm border-blue-200 shadow-lg">
-            <CardContent className="p-6 text-center">
-              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="h-8 w-8 text-blue-600" />
-              </div>
-              <div className="text-3xl font-bold text-blue-600 mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-blue-600 mb-1">
                 {accomplishments.length}
               </div>
-              <div className="text-gray-600 font-medium">
+              <div className="text-sm text-muted-foreground">
                 Total Accomplishments
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-green-200 shadow-lg">
-            <CardContent className="p-6 text-center">
-              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <div className="text-3xl font-bold text-green-600 mb-2">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-green-600 mb-1">
                 {accomplishments.length}
               </div>
-              <div className="text-gray-600 font-medium">
-                All Published
+              <div className="text-sm text-muted-foreground">
+                Published
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-yellow-200 shadow-lg">
-            <CardContent className="p-6 text-center">
-              <div className="bg-yellow-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="h-8 w-8 text-yellow-600" />
-              </div>
-              <div className="text-3xl font-bold text-yellow-600 mb-2">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-yellow-600 mb-1">
                 {accomplishments.filter(a => a.project_id).length}
               </div>
-              <div className="text-gray-600 font-medium">
+              <div className="text-sm text-muted-foreground">
                 From Projects
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-purple-200 shadow-lg">
-            <CardContent className="p-6 text-center">
-              <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="h-8 w-8 text-purple-600" />
-              </div>
-              <div className="text-3xl font-bold text-purple-600 mb-2">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-purple-600 mb-1">
                 {new Set(accomplishments.map(a => a.location).filter(Boolean)).size}
               </div>
-              <div className="text-gray-600 font-medium">
+              <div className="text-sm text-muted-foreground">
                 Locations
               </div>
             </CardContent>

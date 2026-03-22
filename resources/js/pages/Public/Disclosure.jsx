@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { FileText, Calendar, Eye, Building, Search, Filter, X, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
+
 const PublicDisclosure = () => {
   const [disclosures, setDisclosures] = useState([]);
   const [filteredDisclosures, setFilteredDisclosures] = useState([]);
@@ -539,11 +540,6 @@ All financial transactions have been reviewed and verified. Complete documentati
                 We are committed to transparent governance and community involvement. 
                 All documents are made available to ensure accountability and build trust with our residents.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button className="border border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white/10 transition-colors">
-                  <Link to="/Requests">Provide Feedback</Link>
-                </Button>
-              </div>
               <p className="text-sm text-blue-200 mt-6">
                 Have questions about our disclosures? Visit the barangay hall or contact us directly.
               </p>

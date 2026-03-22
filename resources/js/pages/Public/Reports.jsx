@@ -281,8 +281,6 @@ const MonthlyReportsPublic = () => {
                 <CardDescription className="flex items-center space-x-2 text-sm">
                   <Calendar className="h-4 w-4" />
                   <span>{report.month} {report.year}</span>
-                  <span>•</span>
-                  <span>{report.author || 'Barangay'}</span>
                 </CardDescription>
               </CardHeader>
               
@@ -369,10 +367,6 @@ const MonthlyReportsPublic = () => {
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   <span>{selectedReport.month} {selectedReport.year}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <span>{selectedReport.author || 'Barangay'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />

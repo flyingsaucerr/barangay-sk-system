@@ -125,7 +125,7 @@ const handleSubmit = async (e) => {
         <div className="max-w-4xl mx-auto">
 
         {/* Request Types Info */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6  mb-8 mt-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6  mb-8 mt-10 ">
           <Card className="text-center hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -156,7 +156,7 @@ const handleSubmit = async (e) => {
         </div>
 
         {/* Submit Button */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-12 ">
           <Button 
             onClick={() => setShowForm(true)}
             size="lg"
@@ -168,7 +168,7 @@ const handleSubmit = async (e) => {
         </div>
 
         {/* Process Info */}
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-blue-50 border-blue-200 mb-5">
           <CardHeader>
             <CardTitle className="text-center text-blue-800">Request Process</CardTitle>
           </CardHeader>

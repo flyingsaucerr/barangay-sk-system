@@ -490,7 +490,7 @@ const handleStatusChange = async (id, newStatus) => {
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                       <select 
                         value={facility.status}
                         onChange={(e) => handleStatusChange(facility.id, e.target.value)}

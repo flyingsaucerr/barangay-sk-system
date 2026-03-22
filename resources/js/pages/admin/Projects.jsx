@@ -17,11 +17,6 @@ const AdminProjects = () => {
   const [viewingProject, setViewingProject] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [postedProjects, setPostedProjects] = useState(new Set());
-  const [isCheckingAccomplishments, setIsCheckingAccomplishments] = useState(false);
-  
-  // Use ref to track if we've already processed auto-completion for a project
-  const processedAutoCompleteRef = useRef(new Set());
   
   const userRole = localStorage.getItem('userRole') || 'resident';
   const authToken = localStorage.getItem('authToken');
@@ -39,166 +34,46 @@ const AdminProjects = () => {
     category: 'Infrastructure'
   });
 
-  // Load posted projects from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('postedProjects');
-    if (saved) {
-      try {
-        setPostedProjects(new Set(JSON.parse(saved)));
-      } catch (e) {
-        console.error('Error loading posted projects:', e);
-      }
-    }
-  }, []);
-
-  // Save to localStorage whenever postedProjects changes
-  useEffect(() => {
-    localStorage.setItem('postedProjects', JSON.stringify([...postedProjects]));
-  }, [postedProjects]);
-
-  // Fetch accomplishments to check which projects are already posted
-  const fetchAccomplishmentsForTracking = async () => {
+  // Fetch projects from API
+  const fetchProjects = async () => {
     try {
-      setIsCheckingAccomplishments(true);
-      const response = await fetch('http://localhost:8000/api/accomplishments', {
+      setLoading(true);
+      const response = await fetch('http://localhost:8000/api/projects', {
         headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
-        const accomplishments = await response.json();
-        
-        // Create a Set of project titles that already have accomplishments
-        const postedTitles = new Set(
-          accomplishments.map(acc => acc.title)
-        );
-        
-        console.log('Fetched accomplishments:', [...postedTitles]);
-        
-        // Merge with existing postedProjects
-        setPostedProjects(prev => {
-          const merged = new Set([...prev, ...postedTitles]);
-          return merged;
-        });
-        
-        return postedTitles;
-      }
-      return new Set();
-    } catch (error) {
-      console.error('Error fetching accomplishments for tracking:', error);
-      return new Set();
-    } finally {
-      setIsCheckingAccomplishments(false);
-    }
-  };
+        let data = await response.json();
 
-  // Function to create accomplishment from completed project
-  const createAccomplishmentFromProject = async (project) => {
-    try {
-      // Double-check with current postedProjects state
-      if (postedProjects.has(project.title)) {
-        console.log(`Project "${project.title}" already has an accomplishment, skipping...`);
-        return false;
-      }
-
-      const authToken = localStorage.getItem('authToken');
-      
-      // Create FormData for accomplishment
-      const formData = new FormData();
-      formData.append('title', project.title);
-      formData.append('description', project.full_description || project.description);
-      formData.append('location', project.location);
-      formData.append('date_completed', new Date().toISOString().split('T')[0]); // Today's date
-      formData.append('is_published', true);
-      formData.append('project_id', project.id); // Send project_id to link the accomplishment
-
-      const response = await fetch('http://localhost:8000/api/accomplishments', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Accept': 'application/json',
-        },
-        body: formData,
-      });
-
-      if (response.ok) {
-        const accomplishment = await response.json();
-        console.log('Accomplishment created successfully:', accomplishment);
-        
-        // Add to posted tracking
-        setPostedProjects(prev => new Set([...prev, project.title]));
-        
-        // Show notification (only once)
-        alert(`✅ Project "${project.title}" has been automatically added to accomplishments with image!`);
-        
-        return true;
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to create accomplishment:', response.status, errorText);
-        
-        // Check for 422 (validation error) - might mean it already exists
-        if (response.status === 422) {
-          // Add to tracking anyway to prevent future attempts
-          setPostedProjects(prev => new Set([...prev, project.title]));
-        }
-        
-        return false;
-      }
-    } catch (error) {
-      console.error('Error creating accomplishment from project:', error);
-      return false;
-    }
-  };
-  
-  // Fetch projects from API
-const fetchProjects = async () => {
-  try {
-    setLoading(true);
-    
-    // First, fetch accomplishments to know what's already posted
-    const postedTitles = await fetchAccomplishmentsForTracking();
-
-    const response = await fetch('http://localhost:8000/api/projects', {
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (response.ok) {
-      let data = await response.json();
-      
-      // Validate and fix any inconsistent data
       data = data.map(project => {
-        // Ensure progress matches status
-        if (project.status === 'completed' && project.progress !== 100) {
-          project.progress = 100;
-        } else if (project.status === 'planning' && project.progress > 0) {
-          // Optionally adjust progress for planning phase
-          // project.progress = 0;
-        } else if (project.status === 'ongoing' && (project.progress === 0 || project.progress === 100)) {
-          // If ongoing but progress is 0 or 100, adjust accordingly
-          if (project.progress === 100) {
-            project.status = 'completed';
-          }
+        const today = new Date();
+        const end = project.end_date ? new Date(project.end_date) : null;
+
+        if (end) {
+          today.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
         }
+
+        if (project.status === 'completed' || (end && today >= end)) {
+          project.progress = 100;
+          project.status = 'completed';
+        }
+
         return project;
       });
-
-      setProjects(data);
-    } else {
-      console.error('Failed to fetch projects');
+        setProjects(data);
+      } else {
+        console.error('Failed to fetch projects');
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching projects:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchProjects();
-    
-    // Cleanup function
-    return () => {
-      processedAutoCompleteRef.current.clear();
-    };
   }, []);
 
   const filteredProjects = projects.filter((project) => {
@@ -252,23 +127,11 @@ const fetchProjects = async () => {
           onError={(e) => {
             e.target.onerror = null;
             e.target.style.display = 'none';
-            const parent = e.target.parentNode;
-            const placeholder = document.createElement('div');
-            placeholder.className = `w-full h-full ${getPlaceholderColor(project)} flex items-center justify-center`;
-            parent.appendChild(placeholder);
           }}
         />
       );
     }
     return getPlaceholderContent(project);
-  };
-
-  const getPlaceholderColor = (project) => {
-    const colors = [
-      'bg-blue-100', 'bg-green-100', 'bg-yellow-100', 
-      'bg-purple-100', 'bg-pink-100', 'bg-indigo-100'
-    ];
-    return colors[project.title.length % colors.length];
   };
 
   const getPlaceholderContent = (project) => {
@@ -465,169 +328,108 @@ const fetchProjects = async () => {
     }
   };
 
-const handleProgressChange = async (id, newProgress) => {
-  try {
-    const project = projects.find(p => p.id === id);
-    
-    // Convert progress to number and ensure it's valid
-    const progressValue = parseInt(newProgress);
-    if (isNaN(progressValue) || progressValue < 0 || progressValue > 100) {
-      alert('Progress must be a number between 0 and 100');
-      return;
-    }
-    
-    // Determine status based on progress
-    let newStatus = project.status;
-    if (progressValue === 100) {
-      newStatus = 'completed';
-    } else if (progressValue > 0 && progressValue < 100) {
-      // Only change to ongoing if it's not already completed or cancelled
-      if (project.status !== 'cancelled' && project.status !== 'completed') {
-        newStatus = 'ongoing';
+  const handleProgressChange = async (id, newProgress) => {
+    try {
+      const project = projects.find(p => p.id === id);
+
+      if (isPastEndDate(project.end_date) || project.status === 'completed') {
+        alert('This project is already completed.');
+        return;
       }
-    } else if (progressValue === 0) {
-      if (project.status !== 'cancelled' && project.status !== 'completed') {
+
+      const progressValue = parseInt(newProgress);
+
+      if (isNaN(progressValue) || progressValue < 0 || progressValue > 100) {
+        alert('Progress must be 0–100');
+        return;
+      }
+
+      let newStatus = project.status;
+
+      if (progressValue === 100) {
+        newStatus = 'completed';
+      } else if (progressValue > 0) {
+        newStatus = 'ongoing';
+      } else {
         newStatus = 'planning';
       }
-    }
-    
-    // Send update with all required fields
-    const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        title: project.title,
-        description: project.description,
-        full_description: project.full_description || '',
-        start_date: project.start_date,
-        end_date: project.end_date,
-        status: newStatus,
-        location: project.location,
-        beneficiaries: project.beneficiaries,
-        progress: progressValue,
-        category: project.category,
-        _method: 'PUT'
-      }),
-    });
 
-    if (response.ok) {
-      // Check if status changed to completed and we need to create accomplishment
-      if (newStatus === 'completed' && project.status !== 'completed' && !postedProjects.has(project.title)) {
-        const updatedProject = { 
-          ...project, 
-          status: newStatus, 
-          progress: progressValue 
-        };
-        
-        // Small delay to ensure the project is updated first
-        setTimeout(() => {
-          createAccomplishmentFromProject(updatedProject);
-        }, 500);
-      }
-      
-      // If status changed from completed to something else, remove from accomplishments
-      if (project.status === 'completed' && newStatus !== 'completed') {
-        // Remove from postedProjects set
-        setPostedProjects(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(project.title);
-          return newSet;
-        });
-        
-        // Optional: You might want to delete the accomplishment from the database
-        // You'll need to implement this in your backend
-        alert(`Project "${project.title}" is no longer completed. The accomplishment will need to be manually updated.`);
-      }
-      
-      await fetchProjects();
-    } else {
-      const errorText = await response.text();
-      console.error('Failed to update project progress:', response.status, errorText);
-      alert('Failed to update progress. Please try again.');
-    }
-  } catch (error) {
-    console.error('Error updating project progress:', error);
-  }
-};
+      const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          ...project,
+          progress: progressValue,
+          status: newStatus,
+          _method: 'PUT'
+        }),
+      });
 
-const handleStatusChange = async (id, newStatus) => {
-  try {
-    const project = projects.find(p => p.id === id);
-    const oldStatus = project.status;
-    
-    // Determine progress based on status
-    let newProgress = project.progress;
-    if (newStatus === 'completed') {
-      newProgress = 100;
-    } else if (newStatus === 'planning') {
-      newProgress = 0;
-    } else if (newStatus === 'cancelled') {
-      // Keep progress as is or set to 0? I'll keep as is
-      newProgress = project.progress;
-    }
-    
-    // Send update with all required fields
-    const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        title: project.title,
-        description: project.description,
-        full_description: project.full_description || '',
-        start_date: project.start_date,
-        end_date: project.end_date,
-        status: newStatus,
-        location: project.location,
-        beneficiaries: project.beneficiaries,
-        progress: newProgress,
-        category: project.category,
-        _method: 'PUT'
-      }),
-    });
+      if (response.ok) {
+        await fetchProjects();
+      }
 
-    if (response.ok) {
-      // If status changed to 'completed' and it wasn't completed before
-      if (newStatus === 'completed' && oldStatus !== 'completed' && !postedProjects.has(project.title)) {
-        const updatedProject = { 
-          ...project, 
-          status: newStatus, 
-          progress: 100 
-        };
-        await createAccomplishmentFromProject(updatedProject);
-      }
-      
-      // If status changed from 'completed' to something else
-      if (oldStatus === 'completed' && newStatus !== 'completed') {
-        // Remove from postedProjects set
-        setPostedProjects(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(project.title);
-          return newSet;
-        });
-        
-        // Optional: Delete the accomplishment from the database
-        // You'll need to implement this in your backend
-        alert(`Project "${project.title}" is no longer completed. The accomplishment has been removed from tracking.`);
-      }
-      
-      await fetchProjects();
-    } else {
-      const errorText = await response.text();
-      console.error('Failed to update project status:', response.status, errorText);
-      alert('Failed to update status. Please try again.');
+    } catch (error) {
+      console.error(error);
     }
-  } catch (error) {
-    console.error('Error updating project status:', error);
-  }
-};
+  };
+
+
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      const project = projects.find(p => p.id === id);
+      const oldStatus = project.status;
+      
+      let newProgress = project.progress;
+
+      if (newStatus === 'completed') {
+        newProgress = 100;
+      } else if (newStatus === 'planning') {
+        newProgress = 0;
+      }
+      
+      const response = await fetch(`http://localhost:8000/api/projects/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          title: project.title,
+          description: project.description,
+          full_description: project.full_description || '',
+          start_date: project.start_date,
+          end_date: project.end_date,
+          status: newStatus,
+          location: project.location,
+          beneficiaries: project.beneficiaries,
+          progress: newProgress,
+          category: project.category,
+          _method: 'PUT'
+        }),
+      });
+
+      if (response.ok) {
+        await fetchProjects();
+        if (newStatus === 'completed' && oldStatus !== 'completed') {
+          alert(`✅ Project "${project.title}" has been marked as completed and will be added to accomplishments!`);
+        } else if (oldStatus === 'completed' && newStatus !== 'completed') {
+          alert(`⚠️ Project "${project.title}" is no longer completed. The accomplishment has been removed.`);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update project status:', response.status, errorText);
+        alert('Failed to update status. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error updating project status:', error);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -645,6 +447,27 @@ const handleStatusChange = async (id, newStatus) => {
     setImageFile(null);
     setImagePreview(null);
   };
+
+  const isPastEndDate = (endDate) => {
+  if (!endDate) return false;
+
+  const today = new Date();
+  const end = new Date(endDate);
+
+  // Remove time for accurate comparison
+  today.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  return today >= end;
+};
+  // Calculate statistics
+  const totalProjects = projects.length;
+  const inProgressCount = projects.filter(p => 
+    p.status === 'ongoing' || 
+    (p.status === 'planning' && p.progress > 0) ||
+    (p.status === 'completed' && !p.has_accomplishment)
+  ).length;
+  const completedCount = projects.filter(p => p.status === 'completed' && p.has_accomplishment).length;
 
   if (loading) {
     return (
@@ -717,23 +540,19 @@ const handleStatusChange = async (id, newStatus) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600 mb-1">{projects.length}</div>
+            <div className="text-2xl font-bold text-blue-600 mb-1">{totalProjects}</div>
             <div className="text-sm text-muted-foreground">Total Projects</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600 mb-1">
-              {projects.filter(p => p.status === 'ongoing').length}
-            </div>
+            <div className="text-2xl font-bold text-yellow-600 mb-1">{inProgressCount}</div>
             <div className="text-sm text-muted-foreground">In Progress</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600 mb-1">
-              {projects.filter(p => p.status === 'completed').length}
-            </div>
+            <div className="text-2xl font-bold text-green-600 mb-1">{completedCount}</div>
             <div className="text-sm text-muted-foreground">Completed</div>
           </CardContent>
         </Card>
@@ -759,7 +578,7 @@ const handleStatusChange = async (id, newStatus) => {
               </Badge>
 
               {/* Show if already posted to accomplishments */}
-              {project.status === 'completed' && postedProjects.has(project.title) && (
+              {project.status === 'completed' && project.has_accomplishment && (
                 <Badge className="absolute bottom-3 left-3 bg-purple-500 text-white border-0">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Posted to Accomplishments
@@ -804,6 +623,7 @@ const handleStatusChange = async (id, newStatus) => {
                         max="100"
                         value={project.progress}
                         onChange={(e) => handleProgressChange(project.id, e.target.value)}
+                        disabled={project.status === 'completed' || isPastEndDate(project.end_date)}
                         className="w-16 h-8 text-sm text-center"
                       />
                       <span>%</span>
@@ -843,15 +663,25 @@ const handleStatusChange = async (id, newStatus) => {
               {/* Status and Actions */}
               <div className="grid grid-cols-2 gap-2">
                 {(userRole === 'admin' || userRole === 'staff') ? (
-                  <Select value={project.status} onValueChange={(value) => handleStatusChange(project.id, value)}>
+                  <Select
+                    value={project.status}
+                    onValueChange={(value) => handleStatusChange(project.id, value)}
+                  >
                     <SelectTrigger className="text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="planning">Planning</SelectItem>
-                      <SelectItem value="ongoing">Ongoing</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      {isPastEndDate(project.end_date) ? (
+                        // If past end date → only completed allowed
+                        <SelectItem value="completed">Completed</SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="planning">Planning</SelectItem>
+                          <SelectItem value="ongoing">Ongoing</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 ) : (
@@ -859,6 +689,7 @@ const handleStatusChange = async (id, newStatus) => {
                     {getStatusText(project.status)}
                   </Badge>
                 )}
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -910,7 +741,6 @@ const handleStatusChange = async (id, newStatus) => {
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.style.display = 'none';
-                      e.target.parentNode.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-blue-100"><svg class="h-16 w-16 text-gray-400" ...></svg></div>';
                     }}
                   />
                 ) : (
@@ -949,6 +779,11 @@ const handleStatusChange = async (id, newStatus) => {
                 <div>
                   <strong>Status:</strong> {getStatusText(viewingProject.status)}
                 </div>
+                {viewingProject.status === 'completed' && viewingProject.has_accomplishment && (
+                  <div className="col-span-2">
+                    <strong>Accomplishment:</strong> Posted to accomplishments
+                  </div>
+                )}
                 <div className="col-span-2">
                   <strong>Progress:</strong> {viewingProject.progress}%
                   <div className="w-full bg-gray-200 rounded-full h-3 mt-1">
@@ -1135,15 +970,26 @@ const handleStatusChange = async (id, newStatus) => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status
                   </label>
-                  <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, status: value }))
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="planning">Planning</SelectItem>
-                      <SelectItem value="ongoing">Ongoing</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      {isPastEndDate(formData.end_date) ? (
+                        <SelectItem value="completed">Completed</SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="planning">Planning</SelectItem>
+                          <SelectItem value="ongoing">Ongoing</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

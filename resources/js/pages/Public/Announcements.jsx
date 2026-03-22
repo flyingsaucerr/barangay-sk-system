@@ -319,13 +319,7 @@ const Announcements = () => {
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 text-white py-8 mt-12">
-        <div className="container mx-auto px-4 text-center">
-          <p>© {new Date().getFullYear()} Barangay Community. All rights reserved.</p>
-          <p className="text-gray-400 mt-2">Stay connected with your community</p>
-        </div>
-      </footer>
+      
     </div>
   );
 };

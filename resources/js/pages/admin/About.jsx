@@ -706,7 +706,7 @@ const fetchAchievements = async () => {
               </div>
               <div className="flex items-center gap-3">
                 <Users className="h-4 w-4 text-muted-foreground" />
-                <span>Facebook: Barangay Tumana 2023</span>
+                <span>Facebook: SK Tumana 2023</span>
               </div>
             </CardContent>
           </Card>

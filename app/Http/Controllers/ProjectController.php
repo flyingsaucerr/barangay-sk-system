@@ -15,6 +15,12 @@ class ProjectController extends Controller
     public function index()
     {
         $projects = Project::with('user')->latest()->get();
+        
+        // Add has_accomplishment flag to each project
+        $projects->each(function ($project) {
+            $project->has_accomplishment = Accomplishment::where('project_id', $project->id)->exists();
+        });
+        
         return response()->json($projects);
     }
 
@@ -60,12 +66,17 @@ class ProjectController extends Controller
             $this->createAccomplishmentFromProject($project);
         }
 
+        // Add has_accomplishment flag to response
+        $project->has_accomplishment = $project->status === 'completed' && 
+                                       Accomplishment::where('project_id', $project->id)->exists();
+
         return response()->json($project->load('user'), 201);
     }
 
     public function show($id)
     {
         $project = Project::with('user')->findOrFail($id);
+        $project->has_accomplishment = Accomplishment::where('project_id', $project->id)->exists();
         return response()->json($project);
     }
 
@@ -119,6 +130,9 @@ class ProjectController extends Controller
         elseif ($oldStatus === 'completed' && $request->status !== 'completed') {
             $this->deleteAccomplishmentFromProject($project->id);
         }
+
+        // Add has_accomplishment flag to response
+        $project->has_accomplishment = Accomplishment::where('project_id', $project->id)->exists();
 
         return response()->json($project->load('user'));
     }

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building, Search, Calendar, MapPin, Users, ArrowRight, X, Hammer, Wrench } from "lucide-react";
+import { Building, Search, Calendar, MapPin, Users, ArrowRight, X, Hammer, Wrench, CheckCircle } from "lucide-react";
 
 const Projects = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,14 +40,62 @@ const Projects = () => {
     fetchProjects();
   }, []);
 
-  const filteredProjects = projects.filter((project) => {
+  // Function to determine if a project should be considered "in progress"
+  const isProjectInProgress = (project) => {
+    return (
+      project.status === 'ongoing' ||
+      (project.status === 'planning' && project.progress > 0) ||
+      (project.status === 'completed' && !project.has_accomplishment)
+    );
+  };
+  const getUpdatedProjectStatus = (project) => {
+    const today = new Date();
+
+    if (project.end_date) {
+      const endDate = new Date(project.end_date);
+
+      today.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+
+      if (today >= endDate || project.status === "completed") {
+        return {
+          ...project,
+          status: "completed",
+          progress: 100, 
+          has_accomplishment: true,
+        };
+      }
+    }
+
+    return project;
+  };
+
+  const filteredProjects = projects
+    .map(getUpdatedProjectStatus) // Apply auto-completion logic
+    .filter((project) => {
+    // Apply status filter
+    let matchesStatus = true;
+
+    if (statusFilter === "ongoing") {
+      matchesStatus = isProjectInProgress(project);
+    } else if (statusFilter !== "all") {
+      matchesStatus = project.status === statusFilter;
+    }
+
     const matchesSearch =
       project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || project.status === statusFilter;
+
     return matchesSearch && matchesStatus;
   });
+
+  // Calculate statistics
+  const totalProjects = projects.length;
+  const inProgressCount = projects.filter(p => isProjectInProgress(p)).length;
+  const completedCount = projects.filter(p => p.status === 'completed' && p.has_accomplishment).length;
+  const planningCount = projects.filter(p => p.status === 'planning').length;
+  const totalBeneficiaries = projects.reduce((sum, p) => sum + p.beneficiaries, 0);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -81,7 +129,6 @@ const Projects = () => {
   };
 
   const getProjectImage = (project) => {
-    // Check if project has an image
     if (project.image) {
       const imageUrl = `http://localhost:8000/storage/${project.image}`;
       return (
@@ -92,7 +139,6 @@ const Projects = () => {
           onError={(e) => {
             e.target.onerror = null;
             e.target.style.display = 'none';
-            // Show placeholder on error
             const parent = e.target.parentNode;
             const placeholder = getPlaceholderContent(project.category, project.title);
             parent.innerHTML = placeholder.props.children;
@@ -101,7 +147,6 @@ const Projects = () => {
       );
     }
     
-    // Otherwise show placeholder
     return getPlaceholderContent(project.category, project.title);
   };
 
@@ -157,11 +202,6 @@ const Projects = () => {
     );
   }
 
-  const totalBeneficiaries = projects.reduce((sum, p) => sum + p.beneficiaries, 0);
-  const ongoingCount = projects.filter(p => p.status === 'ongoing').length;
-  const completedCount = projects.filter(p => p.status === 'completed').length;
-  const planningCount = projects.filter(p => p.status === 'planning').length;
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
@@ -197,7 +237,7 @@ const Projects = () => {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="planning">Planning</SelectItem>
-              <SelectItem value="ongoing">Ongoing</SelectItem>
+              <SelectItem value="ongoing">In Progress</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
@@ -206,8 +246,8 @@ const Projects = () => {
         {/* Projects Counter */}
         <div className="text-center">
           <p className="text-muted-foreground">
-            Showing {filteredProjects.length} of {projects.length} projects • 
-            <span className="text-green-600 font-semibold"> {ongoingCount} in progress</span>
+            Showing {filteredProjects.length} of {totalProjects} projects • 
+            <span className="text-green-600 font-semibold"> {inProgressCount} in progress</span>
           </p>
         </div>
 
@@ -215,13 +255,13 @@ const Projects = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600 mb-1">{projects.length}</div>
+              <div className="text-2xl font-bold text-blue-600 mb-1">{totalProjects}</div>
               <div className="text-sm text-muted-foreground">Total Projects</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-yellow-600 mb-1">{ongoingCount}</div>
+              <div className="text-2xl font-bold text-yellow-600 mb-1">{inProgressCount}</div>
               <div className="text-sm text-muted-foreground">In Progress</div>
             </CardContent>
           </Card>
@@ -248,6 +288,14 @@ const Projects = () => {
                 <Badge className={`absolute top-3 right-3 border ${getStatusColor(project.status)}`}>
                   {getStatusText(project.status)}
                 </Badge>
+                
+                {/* Show indicator if project is completed and has accomplishment */}
+                {project.status === 'completed' && project.has_accomplishment && (
+                  <Badge className="absolute bottom-3 left-3 bg-purple-500 text-white border-0">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Accomplishment Posted
+                  </Badge>
+                )}
               </div>
 
               <CardHeader className="pb-3">
@@ -372,6 +420,14 @@ const Projects = () => {
                       {getStatusText(selectedProject.status)}
                     </Badge>
                   </div>
+                  {selectedProject.status === 'completed' && selectedProject.has_accomplishment && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Posted to Accomplishments
+                      </Badge>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-indigo-500" />
                     <span className="font-medium">Start:</span>
@@ -448,13 +504,6 @@ const Projects = () => {
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 text-white py-8 mt-12">
-        <div className="container mx-auto px-4 text-center">
-          <p>© {new Date().getFullYear()} Barangay Community. All rights reserved.</p>
-          <p className="text-gray-400 mt-2">Stay updated with our community development initiatives</p>
-        </div>
-      </footer>
     </div>
   );
 };
