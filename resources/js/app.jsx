@@ -28,7 +28,7 @@ import AdminReports from "./pages/admin/Reports";
 import AdminRequests from "./pages/admin/Requests";
 import AdminKKID from "./pages/admin/KKID";
 import AdminFilePrinting from "./pages/admin/FilePrinting";
-import AdminAccomplishments from "./pages/Admin/Accomplishments";
+import AdminAccomplishments from "./pages/admin/Accomplishments";
 
 // Components
 import Navbar from "./components/Navbar";
