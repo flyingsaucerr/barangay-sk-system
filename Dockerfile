@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     libicu-dev \
     libpq-dev \
     && docker-php-ext-configure gd --with-jpeg --with-freetype \
-    && docker-php-ext-install pdo pdo_mysql mbstring xml zip bcmath intl gd \
+    && docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring xml zip bcmath intl gd \
     && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
@@ -24,16 +24,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /var/www/html
 
-COPY composer.json composer.lock package.json package-lock.json ./
-
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist \
-    && npm install
-
 COPY . .
 
-RUN cp .env.example .env || true \
-    && php artisan key:generate --force \
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts \
+    && npm install \
     && npm run build \
+    && cp .env.example .env || true \
+    && php artisan key:generate --force \
+    && php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 10000
