@@ -16,18 +16,18 @@ import Requests from "./pages/Public/Requests";
 import FilePrinting from "./pages/Public/FilePrinting";
 
 // Admin Pages
-import AdminLogin from "./pages/Admin/AdminLogin";
-import Register from "./pages/Admin/Register";
-import AdminDashboard from "./pages/Admin/Dashboard";
-import AdminAbout from "./pages/Admin/About";
-import AdminAnnouncements from "./pages/Admin/Announcements";
-import AdminProjects from "./pages/Admin/Projects";
-import AdminFacilities from "./pages/Admin/Facilities";
-import AdminDisclosure from "./pages/Admin/Disclosure";
-import AdminReports from "./pages/Admin/Reports";
-import AdminRequests from "./pages/Admin/Requests";
-import AdminKKID from "./pages/Admin/KKID";
-import AdminFilePrinting from "./pages/Admin/FilePrinting";
+import AdminLogin from "./pages/admin/AdminLogin";
+import Register from "./pages/admin/Register";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminAbout from "./pages/admin/About";
+import AdminAnnouncements from "./pages/admin/Announcements";
+import AdminProjects from "./pages/admin/Projects";
+import AdminFacilities from "./pages/admin/Facilities";
+import AdminDisclosure from "./pages/admin/Disclosure";
+import AdminReports from "./pages/admin/Reports";
+import AdminRequests from "./pages/admin/Requests";
+import AdminKKID from "./pages/admin/KKID";
+import AdminFilePrinting from "./pages/admin/FilePrinting";
 import AdminAccomplishments from "./pages/Admin/Accomplishments";
 
 // Components
