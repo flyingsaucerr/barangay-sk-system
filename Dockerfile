@@ -26,15 +26,23 @@ WORKDIR /var/www/html
 
 COPY . .
 
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts \
-    && npm install \
-    && npm run build \
-    && cp .env.example .env || true \
-    && php artisan key:generate --force \
-    && php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache \
-    && chown -R www-data:www-data storage bootstrap/cache
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
+
+RUN npm install
+
+RUN npm run build
+
+RUN cp .env.example .env || true
+
+RUN php artisan key:generate --force
+
+RUN php artisan config:cache
+
+RUN php artisan route:cache
+
+RUN php artisan view:cache
+
+RUN chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 10000
 
